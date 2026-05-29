@@ -16,6 +16,10 @@ import (
 // *InvalidValueError[T].
 type IntEnum[T Enum] struct {
 	val int
+	// present is false only for the Go zero value; set() marks every member it
+	// builds. It is what makes IntEnum{} distinct from New[T](0). See
+	// StringEnum.present.
+	present bool
 }
 
 // String returns the decimal form of the backing value. Implements fmt.Stringer.
@@ -23,6 +27,11 @@ func (e IntEnum[T]) String() string { return strconv.Itoa(e.val) }
 
 // Value returns the backing integer.
 func (e IntEnum[T]) Value() int { return e.val }
+
+// IsZero reports whether e is the Go zero value rather than a member produced by
+// New, NextInt, FromValue, or a successful Unmarshal. It distinguishes IntEnum{}
+// from New[T](0). See StringEnum.IsZero.
+func (e IntEnum[T]) IsZero() bool { return !e.present }
 
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key.
@@ -34,7 +43,7 @@ func (e IntEnum[T]) MarshalJSON() ([]byte, error) { return []byte(strconv.Itoa(e
 
 // set is the unexported write path that closes the set; see StringEnum.set.
 // It shares the name with StringEnum's set(string) so a single New serves both.
-func (e *IntEnum[T]) set(n int) { e.val = n }
+func (e *IntEnum[T]) set(n int) { e.val, e.present = n, true }
 
 // isEnumMember is the unexported marker required by the Enum constraint; see
 // StringEnum.isEnumMember.
@@ -50,7 +59,7 @@ func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 	if _, ok := lookup[T](n); !ok {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
-	e.val = n
+	e.set(n)
 	return nil
 }
 
@@ -64,7 +73,7 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 	if _, ok := lookup[T](n); !ok {
 		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
 	}
-	e.val = n
+	e.set(n)
 	return nil
 }
 

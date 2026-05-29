@@ -10,6 +10,10 @@ package enum
 // set and return *InvalidValueError[T]. It is never a stored field.
 type StringEnum[T Enum] struct {
 	val string
+	// present is false only for the Go zero value; set() marks every member it
+	// builds. It is what makes StringEnum{} distinct from New[T](""), so a
+	// member backed by the empty string is still tellable from an unset field.
+	present bool
 }
 
 // String returns the member's canonical string. Implements fmt.Stringer.
@@ -17,6 +21,11 @@ func (e StringEnum[T]) String() string { return e.val }
 
 // Value returns the backing string (identical to String for StringEnum).
 func (e StringEnum[T]) Value() string { return e.val }
+
+// IsZero reports whether e is the Go zero value rather than a member produced by
+// New, FromValue, or a successful Unmarshal. It distinguishes StringEnum{} from
+// New[T](""), which String/Value alone cannot.
+func (e StringEnum[T]) IsZero() bool { return !e.present }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
@@ -27,7 +36,7 @@ func (e StringEnum[T]) MarshalText() ([]byte, error) { return []byte(e.val), nil
 // identity, which is what closes the set while still letting New construct
 // values for T defined in another package. IntEnum carries a set(int) of the
 // same name; that shared name is what lets a single New serve both bases.
-func (e *StringEnum[T]) set(s string) { e.val = s }
+func (e *StringEnum[T]) set(s string) { e.val, e.present = s, true }
 
 // isEnumMember is the unexported marker required by the Enum constraint. Only
 // StringEnum and IntEnum define it, so embedding one of them is what makes a
@@ -43,6 +52,6 @@ func (e *StringEnum[T]) UnmarshalText(text []byte) error {
 	if !ok {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
-	e.val = v.String()
+	e.set(v.String())
 	return nil
 }

@@ -163,6 +163,54 @@ func TestNextIntConcurrent(t *testing.T) {
 	}
 }
 
+// Zero-value detection: members backed by "" / 0 must still differ from the
+// Go zero value.
+type EmptyStr struct{ enum.StringEnum[EmptyStr] }
+type ZeroInt struct{ enum.IntEnum[ZeroInt] }
+
+var (
+	Blank  = enum.New[EmptyStr]("") // empty-string member
+	Naught = enum.New[ZeroInt](0)   // zero-int member
+)
+
+func TestZeroValueDistinct(t *testing.T) {
+	var zs EmptyStr
+	if zs == Blank {
+		t.Fatal("zero EmptyStr must differ from New(\"\")")
+	}
+	if !zs.IsZero() || Blank.IsZero() {
+		t.Fatalf("IsZero wrong: zero=%v blank=%v", zs.IsZero(), Blank.IsZero())
+	}
+	if enum.Valid(zs) || !enum.Valid(Blank) {
+		t.Fatal("Valid wrong for EmptyStr zero vs member")
+	}
+	if Blank.String() != "" {
+		t.Fatalf("Blank.String() = %q", Blank.String())
+	}
+
+	var zi ZeroInt
+	if zi == Naught {
+		t.Fatal("zero ZeroInt must differ from New(0)")
+	}
+	if !zi.IsZero() || Naught.IsZero() {
+		t.Fatalf("IsZero wrong: zero=%v naught=%v", zi.IsZero(), Naught.IsZero())
+	}
+
+	// A member survives a JSON round-trip equal to the registered one (i.e. the
+	// unmarshalled value is also present, not a zero-with-matching-payload).
+	b, err := json.Marshal(Naught)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got ZeroInt
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got != Naught || got.IsZero() {
+		t.Fatalf("round-tripped Naught = %+v (IsZero=%v)", got, got.IsZero())
+	}
+}
+
 type Dup struct{ enum.StringEnum[Dup] }
 
 func TestDuplicateRegistrationPanics(t *testing.T) {
