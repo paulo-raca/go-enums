@@ -23,9 +23,8 @@
 //
 //   - String()                              (fmt.Stringer)
 //   - MarshalText / UnmarshalText           (encoding.Text{Marshaler,Unmarshaler})
-//   - JSON marshal/unmarshal:
-//   - StringEnum encodes as a JSON string (via the text interfaces)
-//   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
+//   - JSON: StringEnum as a string (via the text interfaces), IntEnum as a
+//     number (via Marshal/UnmarshalJSON)
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
 //   - IsValid() and Position() methods on each member (Position is 0-based
 //     registration order; -1 marks the zero value)
@@ -95,13 +94,14 @@ func (e *ZeroMarshalError[T]) Error() string {
 }
 
 // bucket holds the registered members of a single enum type. order indexes by
-// 0-based slot (Position-1); names/ints also serve as the duplicate-detection
-// sets, keyed by the backing value rather than the whole member (which now
-// carries a position and so is not a stable dedup key).
+// 0-based slot (Position-1); names/ints double as the duplicate-detection sets,
+// keyed by the backing value rather than the whole member (which now carries a
+// position and so is not a stable dedup key). A member lives in exactly one of
+// names/ints depending on its base, never both.
 type bucket struct {
 	order  []any          // members in registration order, for Values
-	names  map[string]any // String() -> member, for FromValue(string)/Valid + dedup
-	ints   map[int]any    // value -> member, for FromValue(int)/Valid + dedup (IntEnum only)
+	names  map[string]any // value -> member, for FromValue/Valid + dedup (StringEnum only)
+	ints   map[int]any    // value -> member, for FromValue/Valid + dedup (IntEnum only)
 	maxInt int            // highest value seen so far (IntEnum only)
 }
 
@@ -147,7 +147,6 @@ func registerLocked[T Enum, PT interface {
 
 	v := *t
 	b.order = append(b.order, v)
-	b.names[name] = v
 	if hasInt {
 		// Track the running maximum in O(1) so NextInt never has to scan the
 		// member set, even when explicit New values are interleaved. Check
@@ -156,6 +155,8 @@ func registerLocked[T Enum, PT interface {
 			b.maxInt = ival
 		}
 		b.ints[ival] = v
+	} else {
+		b.names[name] = v
 	}
 }
 
@@ -232,16 +233,16 @@ func Valid[T Enum, V any, PT interface {
 	return ok
 }
 
-// FromValue resolves v to a registered member of T. It is the single lookup for
-// both bases: pass a string to match by the String() projection (for IntEnum,
-// that is the decimal form), or an int to match an IntEnum value directly:
+// FromValue resolves the backing value v to a registered member of T: a string
+// for a StringEnum, or an int for an IntEnum:
 //
 //	s, ok := enum.FromValue[Suit]("hearts")
 //	c, ok := enum.FromValue[Color](2)
 //
 // V is inferred from the argument. The set(V) constraint ties V to T's backing
 // type exactly as New does, so passing the wrong type for a given enum — e.g.
-// enum.FromValue[Suit](5) — is a compile error, not a runtime miss.
+// enum.FromValue[Suit](5) or enum.FromValue[Color]("2") — is a compile error,
+// not a runtime miss.
 func FromValue[T Enum, V any, PT interface {
 	*T
 	set(V)
