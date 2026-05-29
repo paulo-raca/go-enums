@@ -27,7 +27,8 @@
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
-//   - an IsValid() method on each member (real member vs the zero value)
+//   - IsValid() and Position() methods on each member (Position is 1-based
+//     registration order; 0 marks the zero value)
 //   - Values[T](), Valid[T](value), FromValue[T](value)
 //
 // A constructed member is always distinct from the zero value — even one backed
@@ -58,11 +59,13 @@ import (
 // IntEnum[Self]. Beyond being comparable and a fmt.Stringer, it requires the
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
-// types is closed at the constraint level.
+// types is closed at the constraint level. Position exposes the 1-based
+// registration order (0 for the zero value).
 type Enum interface {
 	comparable
 	fmt.Stringer
 	isEnumMember()
+	Position() int
 }
 
 // InvalidValueError is returned when an input does not name a registered
@@ -91,13 +94,15 @@ func (e *ZeroMarshalError[T]) Error() string {
 	return fmt.Sprintf("enum: refusing to marshal zero value of %T", zero)
 }
 
-// bucket holds the registered members of a single enum type.
+// bucket holds the registered members of a single enum type. order indexes by
+// 0-based slot (Position-1); names/ints also serve as the duplicate-detection
+// sets, keyed by the backing value rather than the whole member (which now
+// carries a position and so is not a stable dedup key).
 type bucket struct {
-	order  []any            // members in registration order, for Values
-	seen   map[any]struct{} // registered members, for duplicate detection
-	names  map[string]any   // String() -> member, for FromValue(string) and Valid
-	ints   map[int]any      // value -> member, for FromValue(int)/Valid (IntEnum only)
-	maxInt int              // highest value seen so far (IntEnum only)
+	order  []any          // members in registration order, for Values
+	names  map[string]any // String() -> member, for FromValue(string)/Valid + dedup
+	ints   map[int]any    // value -> member, for FromValue(int)/Valid + dedup (IntEnum only)
+	maxInt int            // highest value seen so far (IntEnum only)
 }
 
 var (
@@ -109,7 +114,6 @@ func bucketOf(t reflect.Type) *bucket {
 	b := reg[t]
 	if b == nil {
 		b = &bucket{
-			seen:  map[any]struct{}{},
 			names: map[string]any{},
 			ints:  map[int]any{},
 		}
@@ -118,17 +122,32 @@ func bucketOf(t reflect.Type) *bucket {
 	return b
 }
 
-// registerLocked records a member and assumes the caller holds mu for writing.
-// Registering the same value twice for a type is a programmer error (a
-// copy-pasted member, a clashing int) and panics.
-func registerLocked[T Enum](v T, hasInt bool, ival int) {
+// registerLocked assigns t its 1-based insertion position, then records it. The
+// caller must hold mu for writing. Registering the same backing value twice for
+// a type is a programmer error (a copy-pasted member, a clashing int) and panics.
+func registerLocked[T Enum, PT interface {
+	*T
+	setPos(int)
+}](t *T, hasInt bool, ival int) {
 	b := bucketOf(reflect.TypeFor[T]())
-	if _, dup := b.seen[v]; dup {
-		panic(fmt.Sprintf("enum: duplicate registration of %T value %q", v, v.String()))
+	// Position is the next free slot. Assign it before reading String() so the
+	// member no longer renders as the zero-value placeholder.
+	PT(t).setPos(len(b.order) + 1)
+	name := (*t).String()
+
+	dup := false
+	if hasInt {
+		_, dup = b.ints[ival]
+	} else {
+		_, dup = b.names[name]
 	}
-	b.seen[v] = struct{}{}
+	if dup {
+		panic(fmt.Sprintf("enum: duplicate registration of %T value %q", *t, name))
+	}
+
+	v := *t
 	b.order = append(b.order, v)
-	b.names[v.String()] = v
+	b.names[name] = v
 	if hasInt {
 		// Track the running maximum in O(1) so NextInt never has to scan the
 		// member set, even when explicit New values are interleaved. Check
@@ -156,15 +175,16 @@ func registerLocked[T Enum](v T, hasInt bool, ival int) {
 func New[T Enum, V any, PT interface {
 	*T
 	set(V)
+	setPos(int)
 }](v V) T {
 	var t T
 	PT(&t).set(v)
 	mu.Lock()
 	defer mu.Unlock()
 	if iv, ok := any(v).(int); ok {
-		registerLocked[T](t, true, iv)
+		registerLocked[T, PT](&t, true, iv)
 	} else {
-		registerLocked[T](t, false, 0)
+		registerLocked[T, PT](&t, false, 0)
 	}
 	return t
 }

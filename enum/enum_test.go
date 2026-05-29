@@ -137,6 +137,36 @@ func TestIntNextIsMaxPlusOne(t *testing.T) {
 	}
 }
 
+func TestPosition(t *testing.T) {
+	// 1-based registration order; zero value is 0.
+	if Hearts.Position() != 1 || Diamonds.Position() != 2 || Spades.Position() != 3 {
+		t.Fatalf("positions = %d,%d,%d",
+			Hearts.Position(), Diamonds.Position(), Spades.Position())
+	}
+	var z Suit
+	if z.Position() != 0 {
+		t.Fatalf("zero position = %d, want 0", z.Position())
+	}
+	// Values is in registration order, and Position matches the index.
+	for i, v := range enum.Values[Suit]() {
+		if v.Position() != i+1 {
+			t.Fatalf("Values[%d].Position() = %d, want %d", i, v.Position(), i+1)
+		}
+	}
+	// Position survives a JSON round-trip (it is copied from the canonical member).
+	b, err := json.Marshal(Diamonds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Suit
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Position() != 2 {
+		t.Fatalf("round-tripped Diamonds.Position() = %d, want 2", got.Position())
+	}
+}
+
 // Conc is registered entirely from concurrent goroutines to exercise the
 // read-and-register atomicity of NextInt under the race detector.
 type Conc struct{ enum.IntEnum[Conc] }
