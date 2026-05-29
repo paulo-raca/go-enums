@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/paulo-raca/go-enums/enum"
@@ -132,16 +133,48 @@ func TestIntNextIsMaxPlusOne(t *testing.T) {
 	}
 }
 
+// Conc is registered entirely from concurrent goroutines to exercise the
+// read-and-register atomicity of NextInt under the race detector.
+type Conc struct{ enum.IntEnum[Conc] }
+
+func TestNextIntConcurrent(t *testing.T) {
+	const n = 200
+	before := len(enum.Values[Conc]()) // idempotent across -count reruns
+	var wg sync.WaitGroup
+	got := make([]int, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			got[i] = enum.NextInt[Conc]().Value()
+		}(i)
+	}
+	wg.Wait()
+
+	seen := make(map[int]bool, n)
+	for _, v := range got {
+		if seen[v] {
+			t.Fatalf("NextInt handed out duplicate value %d", v)
+		}
+		seen[v] = true
+	}
+	if added := len(enum.Values[Conc]()) - before; added != n {
+		t.Fatalf("registered %d members, want %d", added, n)
+	}
+}
+
 type Dup struct{ enum.StringEnum[Dup] }
 
 func TestDuplicateRegistrationPanics(t *testing.T) {
-	_ = enum.New[Dup]("x")
+	// Recover up front so the test is also safe under -count>1, where the very
+	// first New below is itself the duplicate (Dup persists in the registry).
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected panic on duplicate registration")
 		}
 	}()
-	_ = enum.New[Dup]("x") // same value again
+	_ = enum.New[Dup]("x")
+	_ = enum.New[Dup]("x") // same value again -> panic
 }
 
 func TestIntLookup(t *testing.T) {

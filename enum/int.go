@@ -79,10 +79,18 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 //	)
 //
 // Mix freely with explicit New values to start or jump the sequence. NextInt is
-// intended for init-time var blocks, just like iota.
+// intended for init-time var blocks, just like iota, but is also safe to call
+// concurrently: it computes the next value and registers it under a single
+// write lock, so two callers can never be handed the same value.
 func NextInt[T Enum, PT interface {
 	*T
 	set(int)
 }]() T {
-	return New[T, int, PT](nextInt[T]())
+	mu.Lock()
+	defer mu.Unlock()
+	n := nextIntLocked[T]()
+	var t T
+	PT(&t).set(n)
+	registerLocked[T](t, true, n)
+	return t
 }

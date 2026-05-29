@@ -97,11 +97,17 @@ func bucketOf(t reflect.Type) *bucket {
 	return b
 }
 
-// register records a member under lock. Registering the same value twice for a
-// type is a programmer error (a copy-pasted member, a clashing int) and panics.
+// register records a member, taking the write lock. See registerLocked.
 func register[T Enum](v T, hasInt bool, ival int) {
 	mu.Lock()
 	defer mu.Unlock()
+	registerLocked[T](v, hasInt, ival)
+}
+
+// registerLocked records a member and assumes the caller holds mu for writing.
+// Registering the same value twice for a type is a programmer error (a
+// copy-pasted member, a clashing int) and panics.
+func registerLocked[T Enum](v T, hasInt bool, ival int) {
 	b := bucketOf(reflect.TypeFor[T]())
 	if _, dup := b.valid[v]; dup {
 		panic(fmt.Sprintf("enum: duplicate registration of %T value %q", v, v.String()))
@@ -147,11 +153,11 @@ func New[T Enum, V any, PT interface {
 	return t
 }
 
-// nextInt reports the next auto-increment value for T: one past the highest
-// value registered so far, or 0 when no int members exist yet.
-func nextInt[T Enum]() int {
-	mu.RLock()
-	defer mu.RUnlock()
+// nextIntLocked reports the next auto-increment value for T: one past the
+// highest value registered so far, or 0 when no int members exist yet. The
+// caller must hold mu (NextInt holds it for writing across the read-and-register
+// so the value can't be handed out twice).
+func nextIntLocked[T Enum]() int {
 	if b := reg[reflect.TypeFor[T]()]; b != nil && len(b.ints) != 0 {
 		return b.maxInt + 1
 	}
