@@ -10,6 +10,10 @@ Requires Go 1.22+ (`reflect.TypeFor`).
 import "github.com/paulo-raca/go-enums/enum"
 ```
 
+A single constructor, `enum.New`, serves both bases: pass a string for a
+`StringEnum` or an int for an `IntEnum`. The value type is inferred, and a
+mismatch (`enum.New[Suit](5)`) is a compile-time error.
+
 ## String enums
 
 Embed `enum.StringEnum[Self]`; declare members with `enum.New`. The string
@@ -65,10 +69,17 @@ var (
 ## Closed by construction
 
 The backing field and its setter are unexported, so `enum.New` (and the
-iota-like `enum.NextInt`) are the only way to mint a member. Any package may declare enum types and call them,
-but cannot forge arbitrary values — that's a compile-time error. The zero value
-of an enum is constructible but never registered, so `Valid` reports it `false`;
-guard with `Valid` or treat the zero value as an explicit sentinel.
+iota-like `enum.NextInt`) are the only way to mint a member. Any package may
+declare enum types and call them, but cannot forge arbitrary values — that's a
+compile-time error. The zero value of an enum is constructible but never
+registered, so `Valid` reports it `false`; guard with `Valid` or treat the zero
+value as an explicit sentinel.
+
+Registering the same value twice for a type — a copy-pasted member, or two
+`IntEnum` members sharing a value — **panics** at init time rather than passing
+silently. Because of this, `New` is meant for package-level `var` blocks (which
+run once); don't call it for the same value from code that can run more than
+once.
 
 ## Validating input
 
