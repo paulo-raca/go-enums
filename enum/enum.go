@@ -27,7 +27,7 @@
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
-//   - a Valid() method on each member (real member vs the zero value)
+//   - an IsValid() method on each member (real member vs the zero value)
 //   - Values[T](), Valid[T](value), FromValue[T](value)
 //
 // A constructed member is always distinct from the zero value — even one backed
@@ -203,7 +203,7 @@ func Values[T Enum]() []T {
 //	enum.Valid[Color](2)       // true
 //
 // To test a member value itself (a constructed member vs the zero value), call
-// its Valid method instead: v.Valid().
+// its IsValid method instead: v.IsValid().
 func Valid[T Enum, V any, PT interface {
 	*T
 	set(V)

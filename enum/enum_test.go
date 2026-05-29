@@ -55,11 +55,11 @@ func TestStringBasics(t *testing.T) {
 	if Hearts.String() != "hearts" {
 		t.Fatalf("String = %q", Hearts.String())
 	}
-	if !Hearts.Valid() {
+	if !Hearts.IsValid() {
 		t.Fatal("registered member should be valid")
 	}
 	var zero Suit
-	if zero.Valid() {
+	if zero.IsValid() {
 		t.Fatal("zero value must not be valid")
 	}
 	got, ok := enum.FromValue[Suit]("spades")
@@ -186,7 +186,7 @@ func TestZeroValueDistinct(t *testing.T) {
 	if Naught == (ZeroInt{}) {
 		t.Fatal("New(0) must differ from ZeroInt{}")
 	}
-	if (EmptyStr{}).Valid() || !Blank.Valid() {
+	if (EmptyStr{}).IsValid() || !Blank.IsValid() {
 		t.Fatal("Valid() wrong for EmptyStr zero vs member")
 	}
 	if Blank.String() != "" {
@@ -271,7 +271,7 @@ func TestIntLookup(t *testing.T) {
 	if _, ok := enum.FromValue[Color](99); ok {
 		t.Fatal("unknown int must miss")
 	}
-	if !Blue.Valid() {
+	if !Blue.IsValid() {
 		t.Fatal("Blue should be valid")
 	}
 	if !enum.Valid[Color](2) || enum.Valid[Color](99) {

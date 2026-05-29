@@ -34,9 +34,10 @@ func (e IntEnum[T]) String() string {
 // Value returns the backing integer.
 func (e IntEnum[T]) Value() int { return e.val }
 
-// Valid reports whether e is a real member rather than the Go zero value. It is
-// the lock-free present flag, so it is cheap; it does not consult the registry.
-func (e IntEnum[T]) Valid() bool { return e.present }
+// IsValid reports whether e is a real member rather than the Go zero value. It
+// is the lock-free present flag, so it is cheap; it does not consult the
+// registry. Mirrors reflect.Value.IsValid.
+func (e IntEnum[T]) IsValid() bool { return e.present }
 
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key. Encoding the
