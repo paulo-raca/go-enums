@@ -32,9 +32,14 @@ func (e IntEnum[T]) MarshalText() ([]byte, error) { return []byte(strconv.Itoa(e
 // encoding/json prefers this over MarshalText for ordinary values.
 func (e IntEnum[T]) MarshalJSON() ([]byte, error) { return []byte(strconv.Itoa(e.val)), nil }
 
-// set is the unexported write path that closes the set; see StringEnum.set.
-// It shares the name with StringEnum's set(string) so a single New serves both.
-func (e *IntEnum[T]) set(n int) { e.val = n }
+// initializeEnumValue is the unexported write path that closes the set; see
+// StringEnum.initializeEnumValue. It shares the name with StringEnum's
+// initializeEnumValue(string) so a single New serves both.
+func (e *IntEnum[T]) initializeEnumValue(n int) { e.val = n }
+
+// isEnumMember is the unexported marker required by the Enum constraint; see
+// StringEnum.isEnumMember.
+func (IntEnum[T]) isEnumMember() {}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It parses a decimal value,
 // checks membership in T, and stores it, or returns *InvalidValueError[T].
@@ -78,7 +83,7 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 // intended for init-time var blocks, just like iota.
 func NextInt[T Enum, PT interface {
 	*T
-	set(int)
+	initializeEnumValue(int)
 }]() T {
 	return New[T, int, PT](nextInt[T]())
 }
