@@ -64,7 +64,7 @@ var (
 - `MarshalText` / `UnmarshalText` — `encoding.Text{Marshaler,Unmarshaler}`
 - JSON: `StringEnum` as a string, `IntEnum` as a number
 - a typed `*enum.InvalidValueError[T]` on bad input (use with `errors.As`)
-- `enum.Values[T]()`, `enum.Valid[T](v)`, `enum.FromString[T](s)`, `enum.FromInt[T](n)`
+- `enum.Values[T]()`, `enum.Valid[T](v)`, `enum.FromValue[T](v)`
 
 ## Closed by construction
 
@@ -84,7 +84,7 @@ once.
 ## Validating input
 
 ```go
-s, ok := enum.FromString[Suit](untrusted)
+s, ok := enum.FromValue[Suit](untrusted)
 if !ok {
 	// reject
 }

@@ -61,11 +61,11 @@ func TestStringBasics(t *testing.T) {
 	if enum.Valid(zero) {
 		t.Fatal("zero value must not be valid")
 	}
-	got, ok := enum.FromString[Suit]("spades")
+	got, ok := enum.FromValue[Suit]("spades")
 	if !ok || got != Spades {
-		t.Fatalf("FromString = %v, %v", got, ok)
+		t.Fatalf("FromValue = %v, %v", got, ok)
 	}
-	if _, ok := enum.FromString[Suit]("nope"); ok {
+	if _, ok := enum.FromValue[Suit]("nope"); ok {
 		t.Fatal("unknown string must miss")
 	}
 }
@@ -145,10 +145,10 @@ func TestDuplicateRegistrationPanics(t *testing.T) {
 }
 
 func TestIntLookup(t *testing.T) {
-	if got, ok := enum.FromInt[Color](1); !ok || got != Green {
-		t.Fatalf("FromInt(1) = %v, %v", got, ok)
+	if got, ok := enum.FromValue[Color](1); !ok || got != Green {
+		t.Fatalf("FromValue(1) = %v, %v", got, ok)
 	}
-	if _, ok := enum.FromInt[Color](99); ok {
+	if _, ok := enum.FromValue[Color](99); ok {
 		t.Fatal("unknown int must miss")
 	}
 	if !enum.Valid(Blue) {

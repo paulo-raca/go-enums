@@ -43,7 +43,7 @@ func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 	if err != nil {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
-	if _, ok := FromInt[T](n); !ok {
+	if _, ok := FromValue[T](n); !ok {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
 	e.val = n
@@ -57,7 +57,7 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &n); err != nil {
 		return &InvalidValueError[T]{Value: string(data)}
 	}
-	if _, ok := FromInt[T](n); !ok {
+	if _, ok := FromValue[T](n); !ok {
 		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
 	}
 	e.val = n

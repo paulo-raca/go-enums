@@ -27,7 +27,7 @@
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
 //   - a typed *InvalidValueError[T] on bad input  (works with errors.As)
-//   - Values[T](), Valid[T](), FromString[T](), FromInt[T]()
+//   - Values[T](), Valid[T](), FromValue[T]()
 //
 // Closure: the backing field and its setter are unexported, so New (and the
 // iota-like NextInt) are the only ways to mint a member. Code in any package may
@@ -70,8 +70,8 @@ func (e *InvalidValueError[T]) Error() string {
 type bucket struct {
 	order  []any            // members in registration order, for Values
 	valid  map[any]struct{} // membership, for Valid
-	names  map[string]any   // String() -> member, for FromString
-	ints   map[int]any      // value -> member, for FromInt (IntEnum only)
+	names  map[string]any   // String() -> member, for FromValue(string)
+	ints   map[int]any      // value -> member, for FromValue(int) (IntEnum only)
 	maxInt int              // highest value seen so far (IntEnum only)
 }
 
@@ -181,9 +181,16 @@ func Valid[T Enum](v T) bool {
 	return ok
 }
 
-// FromString resolves s to a registered member of T by its String() projection.
-// For IntEnum, that projection is the decimal form of the value.
-func FromString[T Enum](s string) (T, bool) {
+// FromValue resolves v to a registered member of T. It is the single lookup for
+// both bases: pass a string to match by the String() projection (for IntEnum,
+// that is the decimal form), or an int to match an IntEnum value directly:
+//
+//	s, ok := enum.FromValue[Suit]("hearts")
+//	c, ok := enum.FromValue[Color](2)
+//
+// As with New, V is inferred from the argument and a type outside {string, int}
+// is a compile error.
+func FromValue[T Enum, V interface{ string | int }](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
@@ -191,28 +198,17 @@ func FromString[T Enum](s string) (T, bool) {
 		var zero T
 		return zero, false
 	}
-	v, ok := b.names[s]
+	var raw any
+	var ok bool
+	switch val := any(v).(type) {
+	case string:
+		raw, ok = b.names[val]
+	case int:
+		raw, ok = b.ints[val]
+	}
 	if !ok {
 		var zero T
 		return zero, false
 	}
-	return v.(T), true
-}
-
-// FromInt resolves n to a registered member of T. Only meaningful for IntEnum
-// types; a StringEnum type has no integer-keyed members and always misses.
-func FromInt[T Enum](n int) (T, bool) {
-	mu.RLock()
-	defer mu.RUnlock()
-	b := reg[reflect.TypeFor[T]()]
-	if b == nil {
-		var zero T
-		return zero, false
-	}
-	v, ok := b.ints[n]
-	if !ok {
-		var zero T
-		return zero, false
-	}
-	return v.(T), true
+	return raw.(T), true
 }

@@ -34,7 +34,7 @@ func (e *StringEnum[T]) set(s string) { e.val = s }
 // *InvalidValueError[T]. JSON null is left untouched (the text path only fires on
 // quoted strings).
 func (e *StringEnum[T]) UnmarshalText(text []byte) error {
-	v, ok := FromString[T](string(text))
+	v, ok := FromValue[T](string(text))
 	if !ok {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
