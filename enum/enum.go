@@ -3,14 +3,14 @@
 //
 // Two embeddable bases are offered:
 //
-//	type AIStopReason struct{ enum.StringEnum[AIStopReason] }
-//	type Color        struct{ enum.IntEnum[Color] }
+//	type Suit  struct{ enum.StringEnum[Suit] }
+//	type Color struct{ enum.IntEnum[Color] }
 //
 // Members are declared once, in a var block, and that is all the boilerplate:
 //
 //	var (
-//		AIStopReasonEndTurn   = enum.NewString[AIStopReason]("end_turn")
-//		AIStopReasonMaxTokens = enum.NewString[AIStopReason]("max_tokens")
+//		Hearts   = enum.NewString[Suit]("hearts")
+//		Diamonds = enum.NewString[Suit]("diamonds")
 //	)
 //
 //	var (

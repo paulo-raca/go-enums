@@ -3,7 +3,7 @@ package enum
 // StringEnum is embedded (parameterised over the embedding type) to turn a
 // struct into a string-backed enum member:
 //
-//	type AIStopReason struct{ enum.StringEnum[AIStopReason] }
+//	type Suit struct{ enum.StringEnum[Suit] }
 //
 // T appears only in method signatures — it is a phantom type parameter carrying
 // the concrete identity so UnmarshalText can resolve against the right member
@@ -46,7 +46,7 @@ func (e *StringEnum[T]) UnmarshalText(text []byte) error {
 // Only T need be named at the call site — PT (*T) is resolved by constraint
 // type inference:
 //
-//	AIStopReasonEndTurn = enum.NewString[AIStopReason]("end_turn")
+//	Hearts = enum.NewString[Suit]("hearts")
 //
 // Duplicate registrations (same T, same string) are ignored.
 func NewString[T Enum, PT interface {

@@ -11,12 +11,12 @@ import (
 
 // --- string enum under test ---------------------------------------------
 
-type AIStopReason struct{ enum.StringEnum[AIStopReason] }
+type Suit struct{ enum.StringEnum[Suit] }
 
 var (
-	AIStopReasonEndTurn   = enum.NewString[AIStopReason]("end_turn")
-	AIStopReasonMaxTokens = enum.NewString[AIStopReason]("max_tokens")
-	AIStopReasonToolUse   = enum.NewString[AIStopReason]("tool_use")
+	Hearts   = enum.NewString[Suit]("hearts")
+	Diamonds = enum.NewString[Suit]("diamonds")
+	Spades   = enum.NewString[Suit]("spades")
 )
 
 // --- int enums under test (iota-like, and explicit-start) ----------------
@@ -38,62 +38,62 @@ var (
 )
 
 func TestStringBasics(t *testing.T) {
-	if AIStopReasonEndTurn.String() != "end_turn" {
-		t.Fatalf("String = %q", AIStopReasonEndTurn.String())
+	if Hearts.String() != "hearts" {
+		t.Fatalf("String = %q", Hearts.String())
 	}
-	if !enum.Valid(AIStopReasonEndTurn) {
+	if !enum.Valid(Hearts) {
 		t.Fatal("registered member should be valid")
 	}
-	var zero AIStopReason
+	var zero Suit
 	if enum.Valid(zero) {
 		t.Fatal("zero value must not be valid")
 	}
-	got, ok := enum.FromString[AIStopReason]("tool_use")
-	if !ok || got != AIStopReasonToolUse {
+	got, ok := enum.FromString[Suit]("spades")
+	if !ok || got != Spades {
 		t.Fatalf("FromString = %v, %v", got, ok)
 	}
-	if _, ok := enum.FromString[AIStopReason]("nope"); ok {
+	if _, ok := enum.FromString[Suit]("nope"); ok {
 		t.Fatal("unknown string must miss")
 	}
 }
 
 func TestStringValuesOrder(t *testing.T) {
-	want := []AIStopReason{AIStopReasonEndTurn, AIStopReasonMaxTokens, AIStopReasonToolUse}
-	if got := enum.Values[AIStopReason](); !reflect.DeepEqual(got, want) {
+	want := []Suit{Hearts, Diamonds, Spades}
+	if got := enum.Values[Suit](); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Values = %v, want %v", got, want)
 	}
 }
 
 func TestStringJSON(t *testing.T) {
-	b, err := json.Marshal(AIStopReasonMaxTokens)
+	b, err := json.Marshal(Diamonds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != `"max_tokens"` {
+	if string(b) != `"diamonds"` {
 		t.Fatalf("marshal = %s", b)
 	}
-	var r AIStopReason
-	if err := json.Unmarshal([]byte(`"end_turn"`), &r); err != nil {
+	var r Suit
+	if err := json.Unmarshal([]byte(`"hearts"`), &r); err != nil {
 		t.Fatal(err)
 	}
-	if r != AIStopReasonEndTurn {
+	if r != Hearts {
 		t.Fatalf("unmarshal = %v", r)
 	}
 
 	err = json.Unmarshal([]byte(`"bogus"`), &r)
-	var invalid *enum.InvalidError[AIStopReason]
+	var invalid *enum.InvalidError[Suit]
 	if !errors.As(err, &invalid) || invalid.Value != "bogus" {
 		t.Fatalf("want *InvalidError, got %v", err)
 	}
 }
 
 func TestStringAsJSONMapKey(t *testing.T) {
-	m := map[AIStopReason]int{AIStopReasonToolUse: 3}
+	m := map[Suit]int{Spades: 3}
 	b, err := json.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != `{"tool_use":3}` {
+	if string(b) != `{"spades":3}` {
 		t.Fatalf("map marshal = %s", b)
 	}
 }
@@ -145,15 +145,15 @@ func TestIntJSONIsNumber(t *testing.T) {
 
 func TestIntInStruct(t *testing.T) {
 	type payload struct {
-		Stop AIStopReason `json:"stop"`
-		Hue  Color        `json:"hue"`
+		Suit Suit  `json:"suit"`
+		Hue  Color `json:"hue"`
 	}
-	in := payload{Stop: AIStopReasonToolUse, Hue: Blue}
+	in := payload{Suit: Spades, Hue: Blue}
 	b, err := json.Marshal(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != `{"stop":"tool_use","hue":2}` {
+	if string(b) != `{"suit":"spades","hue":2}` {
 		t.Fatalf("struct marshal = %s", b)
 	}
 	var out payload

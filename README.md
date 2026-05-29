@@ -16,16 +16,17 @@ Embed `enum.StringEnum[Self]`; declare members with `enum.NewString`. The
 string value *is* the name.
 
 ```go
-type AIStopReason struct{ enum.StringEnum[AIStopReason] }
+type Suit struct{ enum.StringEnum[Suit] }
 
 var (
-	AIStopReasonEndTurn   = enum.NewString[AIStopReason]("end_turn")
-	AIStopReasonMaxTokens = enum.NewString[AIStopReason]("max_tokens")
-	AIStopReasonToolUse   = enum.NewString[AIStopReason]("tool_use")
+	Hearts   = enum.NewString[Suit]("hearts")
+	Diamonds = enum.NewString[Suit]("diamonds")
+	Clubs    = enum.NewString[Suit]("clubs")
+	Spades   = enum.NewString[Suit]("spades")
 )
 ```
 
-`json.Marshal(AIStopReasonEndTurn)` → `"end_turn"` (also works as a JSON map key).
+`json.Marshal(Hearts)` → `"hearts"` (also works as a JSON map key).
 
 ## Integer enums
 
@@ -72,14 +73,14 @@ guard with `Valid` or treat the zero value as an explicit sentinel.
 ## Validating input
 
 ```go
-r, ok := enum.FromString[AIStopReason](untrusted)
+s, ok := enum.FromString[Suit](untrusted)
 if !ok {
 	// reject
 }
 
-var got AIStopReason
+var got Suit
 err := json.Unmarshal(data, &got)
-var invalid *enum.InvalidError[AIStopReason]
+var invalid *enum.InvalidError[Suit]
 if errors.As(err, &invalid) {
 	// invalid.Value holds the offending input
 }
