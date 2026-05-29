@@ -128,18 +128,17 @@ func register[T Enum](v T, hasInt bool, ival int) {
 //	Hearts = enum.New[Suit]("hearts")
 //	Low    = enum.New[Priority](10)
 //
-// The initializeEnumValue(V) constraint is what dispatches: StringEnum has
-// initializeEnumValue(string) and IntEnum has initializeEnumValue(int), so the
-// right one is selected at compile time and a mismatched value type is a compile
-// error. For an IntEnum, an explicit value also advances the auto-increment
-// counter so a following NextInt yields one past the highest value. Registering
-// the same value twice for a type panics.
+// The set(V) constraint is what dispatches: StringEnum has set(string) and
+// IntEnum has set(int), so the right one is selected at compile time and a
+// mismatched value type is a compile error. For an IntEnum, an explicit value
+// also advances the auto-increment counter so a following NextInt yields one
+// past the highest value. Registering the same value twice for a type panics.
 func New[T Enum, V any, PT interface {
 	*T
-	initializeEnumValue(V)
+	set(V)
 }](v V) T {
 	var t T
-	PT(&t).initializeEnumValue(v)
+	PT(&t).set(v)
 	if iv, ok := any(v).(int); ok {
 		register[T](t, true, iv)
 	} else {
@@ -193,20 +192,20 @@ func Valid[T Enum](v T) bool {
 //	s, ok := enum.FromValue[Suit]("hearts")
 //	c, ok := enum.FromValue[Color](2)
 //
-// V is inferred from the argument. The initializeEnumValue(V) constraint ties V
-// to T's backing type exactly as New does, so passing the wrong type for a given
-// enum — e.g. enum.FromValue[Suit](5) — is a compile error, not a runtime miss.
+// V is inferred from the argument. The set(V) constraint ties V to T's backing
+// type exactly as New does, so passing the wrong type for a given enum — e.g.
+// enum.FromValue[Suit](5) — is a compile error, not a runtime miss.
 func FromValue[T Enum, V any, PT interface {
 	*T
-	initializeEnumValue(V)
+	set(V)
 }](v V) (T, bool) {
 	return lookup[T](v)
 }
 
 // lookup is the unconstrained resolver shared by FromValue and the Unmarshal
-// methods. It carries no initializeEnumValue(V) constraint, so the Unmarshal
-// methods — whose T is known only to be an Enum and cannot prove *T has the
-// setter — can still call it. FromValue layers the compile-time type check on top.
+// methods. It carries no set(V) constraint, so the Unmarshal methods — whose T
+// is known only to be an Enum and cannot prove *T has the setter — can still
+// call it. FromValue layers the compile-time type check on top.
 func lookup[T Enum, V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()

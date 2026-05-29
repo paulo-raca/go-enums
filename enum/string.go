@@ -23,12 +23,11 @@ func (e StringEnum[T]) Value() string { return e.val }
 // StringEnum encodes as a JSON string and works as a JSON map key.
 func (e StringEnum[T]) MarshalText() ([]byte, error) { return []byte(e.val), nil }
 
-// initializeEnumValue is the unexported write path. Promoted onto *T it keeps
-// this package's identity, which is what closes the set while still letting New
-// construct values for T defined in another package. IntEnum carries an
-// initializeEnumValue(int) of the same name; that shared name is what lets a
-// single New serve both bases.
-func (e *StringEnum[T]) initializeEnumValue(s string) { e.val = s }
+// set is the unexported write path. Promoted onto *T it keeps this package's
+// identity, which is what closes the set while still letting New construct
+// values for T defined in another package. IntEnum carries a set(int) of the
+// same name; that shared name is what lets a single New serve both bases.
+func (e *StringEnum[T]) set(s string) { e.val = s }
 
 // isEnumMember is the unexported marker required by the Enum constraint. Only
 // StringEnum and IntEnum define it, so embedding one of them is what makes a
