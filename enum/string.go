@@ -49,10 +49,6 @@ func (e StringEnum[T]) Position() int { return e.pos - 1 }
 // every registered member.
 func (e StringEnum[T]) Compare(other T) int { return cmp.Compare(e.Position(), other.Position()) }
 
-// Less reports whether e sorts before other by registration position; it is
-// shorthand for e.Compare(other) < 0.
-func (e StringEnum[T]) Less(other T) bool { return e.Position() < other.Position() }
-
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
 // StringEnum encodes as a JSON string and works as a JSON map key. Encoding the

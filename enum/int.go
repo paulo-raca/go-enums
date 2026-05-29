@@ -48,10 +48,6 @@ func (e IntEnum[T]) Position() int { return e.pos - 1 }
 // returning -1, 0, or +1. See StringEnum.Compare.
 func (e IntEnum[T]) Compare(other T) int { return cmp.Compare(e.Position(), other.Position()) }
 
-// Less reports whether e sorts before other by registration position; shorthand
-// for e.Compare(other) < 0.
-func (e IntEnum[T]) Less(other T) bool { return e.Position() < other.Position() }
-
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key. Encoding the
 // zero value yields *ZeroMarshalError[T].

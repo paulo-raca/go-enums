@@ -69,9 +69,12 @@ var (
 - `enum.Valid[T](value)` — does a backing `int`/`string` name a registered member?
 - `member.IsValid()` — is this a real member, or the zero value? (lock-free)
 - `member.Position()` — 0-based registration order (`-1` for the zero value)
-- `a.Compare(b)` / `a.Less(b)` — order members by registration position. Go has
-  no operator overloading, so `a < b` is `a.Compare(b) < 0` (likewise `<=`, `>`,
-  `>=`); sort with `slices.SortFunc(xs, MyEnum.Compare)`
+- `a.Compare(b)` — order members by registration position. Go has no operator
+  overloading, so `a < b` is `a.Compare(b) < 0` (likewise `<=`, `>`, `>=`)
+
+Enums are **sortable by insertion order**: `Values[T]()` already returns members
+in the order they were declared, and `Compare` lets you sort a mixed slice back
+into that order with `slices.SortFunc(xs, MyEnum.Compare)`.
 
 ## Closed by construction
 
