@@ -29,6 +29,10 @@ func (e StringEnum[T]) String() string {
 // Value returns the backing string (identical to String for StringEnum).
 func (e StringEnum[T]) Value() string { return e.val }
 
+// Valid reports whether e is a real member rather than the Go zero value. It is
+// the lock-free present flag, so it is cheap; it does not consult the registry.
+func (e StringEnum[T]) Valid() bool { return e.present }
+
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
 // StringEnum encodes as a JSON string and works as a JSON map key. Encoding the

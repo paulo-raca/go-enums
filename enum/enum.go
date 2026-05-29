@@ -27,7 +27,8 @@
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
-//   - Values[T](), Valid[T](), FromValue[T]()
+//   - a Valid() method on each member (real member vs the zero value)
+//   - Values[T](), Valid[T](value), FromValue[T](value)
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -93,9 +94,9 @@ func (e *ZeroMarshalError[T]) Error() string {
 // bucket holds the registered members of a single enum type.
 type bucket struct {
 	order  []any            // members in registration order, for Values
-	valid  map[any]struct{} // membership, for Valid
-	names  map[string]any   // String() -> member, for FromValue(string)
-	ints   map[int]any      // value -> member, for FromValue(int) (IntEnum only)
+	seen   map[any]struct{} // registered members, for duplicate detection
+	names  map[string]any   // String() -> member, for FromValue(string) and Valid
+	ints   map[int]any      // value -> member, for FromValue(int)/Valid (IntEnum only)
 	maxInt int              // highest value seen so far (IntEnum only)
 }
 
@@ -108,7 +109,7 @@ func bucketOf(t reflect.Type) *bucket {
 	b := reg[t]
 	if b == nil {
 		b = &bucket{
-			valid: map[any]struct{}{},
+			seen:  map[any]struct{}{},
 			names: map[string]any{},
 			ints:  map[int]any{},
 		}
@@ -122,10 +123,10 @@ func bucketOf(t reflect.Type) *bucket {
 // copy-pasted member, a clashing int) and panics.
 func registerLocked[T Enum](v T, hasInt bool, ival int) {
 	b := bucketOf(reflect.TypeFor[T]())
-	if _, dup := b.valid[v]; dup {
+	if _, dup := b.seen[v]; dup {
 		panic(fmt.Sprintf("enum: duplicate registration of %T value %q", v, v.String()))
 	}
-	b.valid[v] = struct{}{}
+	b.seen[v] = struct{}{}
 	b.order = append(b.order, v)
 	b.names[v.String()] = v
 	if hasInt {
@@ -194,15 +195,20 @@ func Values[T Enum]() []T {
 	return out
 }
 
-// Valid reports whether v is a registered member of T.
-func Valid[T Enum](v T) bool {
-	mu.RLock()
-	defer mu.RUnlock()
-	b := reg[reflect.TypeFor[T]()]
-	if b == nil {
-		return false
-	}
-	_, ok := b.valid[v]
+// Valid reports whether the backing value v names a registered member of T. As
+// with New and FromValue, v is a string for a StringEnum or an int for an
+// IntEnum, and the set(V) constraint makes a wrong type a compile error:
+//
+//	enum.Valid[Suit]("hearts") // true
+//	enum.Valid[Color](2)       // true
+//
+// To test a member value itself (a constructed member vs the zero value), call
+// its Valid method instead: v.Valid().
+func Valid[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) bool {
+	_, ok := lookup[T](v)
 	return ok
 }
 

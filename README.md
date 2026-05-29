@@ -65,7 +65,9 @@ var (
 - JSON: `StringEnum` as a string, `IntEnum` as a number
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
   (marshalling the zero value) errors, both matchable with `errors.As`
-- `enum.Values[T]()`, `enum.Valid[T](v)`, `enum.FromValue[T](v)`
+- `enum.Values[T]()`, `enum.FromValue[T](value)`
+- `enum.Valid[T](value)` — does a backing `int`/`string` name a registered member?
+- `member.Valid()` — is this a real member, or the zero value? (lock-free)
 
 ## Closed by construction
 

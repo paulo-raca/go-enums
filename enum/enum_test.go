@@ -55,11 +55,11 @@ func TestStringBasics(t *testing.T) {
 	if Hearts.String() != "hearts" {
 		t.Fatalf("String = %q", Hearts.String())
 	}
-	if !enum.Valid(Hearts) {
+	if !Hearts.Valid() {
 		t.Fatal("registered member should be valid")
 	}
 	var zero Suit
-	if enum.Valid(zero) {
+	if zero.Valid() {
 		t.Fatal("zero value must not be valid")
 	}
 	got, ok := enum.FromValue[Suit]("spades")
@@ -68,6 +68,10 @@ func TestStringBasics(t *testing.T) {
 	}
 	if _, ok := enum.FromValue[Suit]("nope"); ok {
 		t.Fatal("unknown string must miss")
+	}
+	// package-level Valid takes the backing value, not the member.
+	if !enum.Valid[Suit]("hearts") || enum.Valid[Suit]("nope") {
+		t.Fatal("enum.Valid[Suit](string) wrong")
 	}
 }
 
@@ -182,8 +186,8 @@ func TestZeroValueDistinct(t *testing.T) {
 	if Naught == (ZeroInt{}) {
 		t.Fatal("New(0) must differ from ZeroInt{}")
 	}
-	if enum.Valid(EmptyStr{}) || !enum.Valid(Blank) {
-		t.Fatal("Valid wrong for EmptyStr zero vs member")
+	if (EmptyStr{}).Valid() || !Blank.Valid() {
+		t.Fatal("Valid() wrong for EmptyStr zero vs member")
 	}
 	if Blank.String() != "" {
 		t.Fatalf("Blank.String() = %q", Blank.String())
@@ -267,8 +271,11 @@ func TestIntLookup(t *testing.T) {
 	if _, ok := enum.FromValue[Color](99); ok {
 		t.Fatal("unknown int must miss")
 	}
-	if !enum.Valid(Blue) {
+	if !Blue.Valid() {
 		t.Fatal("Blue should be valid")
+	}
+	if !enum.Valid[Color](2) || enum.Valid[Color](99) {
+		t.Fatal("enum.Valid[Color](int) wrong")
 	}
 }
 
