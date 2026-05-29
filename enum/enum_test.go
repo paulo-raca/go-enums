@@ -14,9 +14,9 @@ import (
 type Suit struct{ enum.StringEnum[Suit] }
 
 var (
-	Hearts   = enum.NewString[Suit]("hearts")
-	Diamonds = enum.NewString[Suit]("diamonds")
-	Spades   = enum.NewString[Suit]("spades")
+	Hearts   = enum.New[Suit]("hearts")
+	Diamonds = enum.New[Suit]("diamonds")
+	Spades   = enum.New[Suit]("spades")
 )
 
 // --- int enums under test (iota-like, and explicit-start) ----------------
@@ -32,9 +32,9 @@ var (
 type Level struct{ enum.IntEnum[Level] }
 
 var (
-	Low  = enum.NewInt[Level](10) // explicit start
-	Mid  = enum.NextInt[Level]()  // 11
-	High = enum.NextInt[Level]()  // 12
+	Low  = enum.New[Level](10)   // explicit start
+	Mid  = enum.NextInt[Level]() // 11
+	High = enum.NextInt[Level]() // 12
 )
 
 // Mixed interleaves auto and explicit values, including an explicit value below
@@ -42,12 +42,12 @@ var (
 type Mixed struct{ enum.IntEnum[Mixed] }
 
 var (
-	MixA = enum.NextInt[Mixed]()   // 0
-	MixB = enum.NewInt[Mixed](100) // 100
-	MixC = enum.NewInt[Mixed](50)  // 50  (below current max)
-	MixD = enum.NextInt[Mixed]()   // 101 = max(0,100,50)+1
-	MixE = enum.NewInt[Mixed](-5)  // -5  (negative, below max)
-	MixF = enum.NextInt[Mixed]()   // 102
+	MixA = enum.NextInt[Mixed]() // 0
+	MixB = enum.New[Mixed](100)  // 100
+	MixC = enum.New[Mixed](50)   // 50  (below current max)
+	MixD = enum.NextInt[Mixed]() // 101 = max(0,100,50)+1
+	MixE = enum.New[Mixed](-5)   // -5  (negative, below max)
+	MixF = enum.NextInt[Mixed]() // 102
 )
 
 func TestStringBasics(t *testing.T) {

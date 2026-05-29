@@ -12,17 +12,17 @@ import "github.com/paulo-raca/go-enums/enum"
 
 ## String enums
 
-Embed `enum.StringEnum[Self]`; declare members with `enum.NewString`. The
-string value *is* the name.
+Embed `enum.StringEnum[Self]`; declare members with `enum.New`. The string
+value *is* the name.
 
 ```go
 type Suit struct{ enum.StringEnum[Suit] }
 
 var (
-	Hearts   = enum.NewString[Suit]("hearts")
-	Diamonds = enum.NewString[Suit]("diamonds")
-	Clubs    = enum.NewString[Suit]("clubs")
-	Spades   = enum.NewString[Suit]("spades")
+	Hearts   = enum.New[Suit]("hearts")
+	Diamonds = enum.New[Suit]("diamonds")
+	Clubs    = enum.New[Suit]("clubs")
+	Spades   = enum.New[Suit]("spades")
 )
 ```
 
@@ -31,7 +31,7 @@ var (
 ## Integer enums
 
 Embed `enum.IntEnum[Self]`. Use `enum.NextInt` for iota-like auto-increment, or
-`enum.NewInt` for explicit values (which the auto-increment counter continues
+`enum.New` with an explicit value (which the auto-increment counter continues
 from). Only the integer is stored; `String()` is its decimal form.
 
 ```go
@@ -46,7 +46,7 @@ var (
 type Level struct{ enum.IntEnum[Level] }
 
 var (
-	Low  = enum.NewInt[Level](10) // explicit start
+	Low  = enum.New[Level](10) // explicit start
 	Mid  = enum.NextInt[Level]()  // 11
 	High = enum.NextInt[Level]()  // 12
 )
@@ -64,8 +64,8 @@ var (
 
 ## Closed by construction
 
-The backing field and its setter are unexported, so the `New*` constructors are
-the only way to mint a member. Any package may declare enum types and call them,
+The backing field and its setter are unexported, so `enum.New` (and the
+iota-like `enum.NextInt`) are the only way to mint a member. Any package may declare enum types and call them,
 but cannot forge arbitrary values — that's a compile-time error. The zero value
 of an enum is constructible but never registered, so `Valid` reports it `false`;
 guard with `Valid` or treat the zero value as an explicit sentinel.

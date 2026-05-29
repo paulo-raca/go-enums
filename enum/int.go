@@ -32,8 +32,9 @@ func (e IntEnum[T]) MarshalText() ([]byte, error) { return []byte(strconv.Itoa(e
 // encoding/json prefers this over MarshalText for ordinary values.
 func (e IntEnum[T]) MarshalJSON() ([]byte, error) { return []byte(strconv.Itoa(e.val)), nil }
 
-// setInt is the unexported write path that closes the set; see setString.
-func (e *IntEnum[T]) setInt(n int) { e.val = n }
+// set is the unexported write path that closes the set; see StringEnum.set.
+// It shares the name with StringEnum's set(string) so a single New serves both.
+func (e *IntEnum[T]) set(n int) { e.val = n }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It parses a decimal value,
 // checks membership in T, and stores it, or returns *InvalidError[T].
@@ -63,24 +64,6 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// NewInt constructs, registers, and returns an integer-backed enum member with
-// an explicit value:
-//
-//	Low = enum.NewInt[Priority](10)
-//
-// The auto-increment counter is advanced past n, so a following NextInt yields
-// n+1 (iota-with-explicit-start semantics). Duplicate registrations (same T,
-// same value) are ignored.
-func NewInt[T Enum, PT interface {
-	*T
-	setInt(int)
-}](n int) T {
-	var v T
-	PT(&v).setInt(n)
-	register[T](v, true, n)
-	return v
-}
-
 // NextInt constructs the next member in iota-like sequence: the first call for
 // a type yields 0, and each subsequent call yields one more than the highest
 // value registered so far.
@@ -91,11 +74,11 @@ func NewInt[T Enum, PT interface {
 //		Blue  = enum.NextInt[Color]() // 2
 //	)
 //
-// Mix freely with NewInt to start or jump the sequence. NextInt is intended for
-// init-time var blocks, just like iota.
+// Mix freely with explicit New values to start or jump the sequence. NextInt is
+// intended for init-time var blocks, just like iota.
 func NextInt[T Enum, PT interface {
 	*T
-	setInt(int)
+	set(int)
 }]() T {
-	return NewInt[T, PT](nextInt[T]())
+	return New[T, int, PT](nextInt[T]())
 }

@@ -23,10 +23,11 @@ func (e StringEnum[T]) Value() string { return e.val }
 // StringEnum encodes as a JSON string and works as a JSON map key.
 func (e StringEnum[T]) MarshalText() ([]byte, error) { return []byte(e.val), nil }
 
-// setString is the unexported write path. Promoted onto *T it keeps this
-// package's identity, which is what closes the set while still letting
-// NewString construct values for T defined in another package.
-func (e *StringEnum[T]) setString(s string) { e.val = s }
+// set is the unexported write path. Promoted onto *T it keeps this package's
+// identity, which is what closes the set while still letting New construct
+// values for T defined in another package. IntEnum carries a set(int) of the
+// same name; that shared name is what lets a single New serve both bases.
+func (e *StringEnum[T]) set(s string) { e.val = s }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It resolves text against
 // T's registered members and copies in the canonical value, or returns
@@ -39,22 +40,4 @@ func (e *StringEnum[T]) UnmarshalText(text []byte) error {
 	}
 	e.val = v.String()
 	return nil
-}
-
-// NewString constructs, registers, and returns a string-backed enum member. It
-// is the only constructor for StringEnum: the value's string is also its name.
-// Only T need be named at the call site — PT (*T) is resolved by constraint
-// type inference:
-//
-//	Hearts = enum.NewString[Suit]("hearts")
-//
-// Duplicate registrations (same T, same string) are ignored.
-func NewString[T Enum, PT interface {
-	*T
-	setString(string)
-}](s string) T {
-	var v T
-	PT(&v).setString(s)
-	register[T](v, false, 0)
-	return v
 }

@@ -9,8 +9,8 @@
 // Members are declared once, in a var block, and that is all the boilerplate:
 //
 //	var (
-//		Hearts   = enum.NewString[Suit]("hearts")
-//		Diamonds = enum.NewString[Suit]("diamonds")
+//		Hearts   = enum.New[Suit]("hearts")
+//		Diamonds = enum.New[Suit]("diamonds")
 //	)
 //
 //	var (
@@ -29,8 +29,8 @@
 //   - a typed *InvalidError[T] on bad input  (works with errors.As)
 //   - Values[T](), Valid[T](), FromString[T](), FromInt[T]()
 //
-// Closure: the backing field and its setter are unexported, so the New*
-// constructors are the only way to mint a member. Code in any package may
+// Closure: the backing field and its setter are unexported, so New (and the
+// iota-like NextInt) are the only ways to mint a member. Code in any package may
 // declare enum types and call them, but cannot forge arbitrary values — that
 // is a compile-time error.
 //
@@ -109,12 +109,40 @@ func register[T Enum](v T, hasInt bool, ival int) {
 	if hasInt {
 		b.ints[ival] = v
 		// Track the running maximum in O(1) so NextInt never has to scan the
-		// member set, even when explicit NewInt values are interleaved.
+		// member set, even when explicit New values are interleaved.
 		if !b.hasInts || ival > b.maxInt {
 			b.maxInt = ival
 		}
 		b.hasInts = true
 	}
+}
+
+// New constructs, registers, and returns an enum member. It is the single
+// constructor for both bases: pass a string for a StringEnum, or an int for an
+// IntEnum. Only T need be named at the call site — V is inferred from the
+// argument and PT (*T) from the constraint:
+//
+//	Hearts = enum.New[Suit]("hearts")
+//	Low    = enum.New[Priority](10)
+//
+// The set(V) constraint is what dispatches: StringEnum has set(string) and
+// IntEnum has set(int), so the right one is selected at compile time and a
+// mismatched value type is a compile error. For an IntEnum, an explicit value
+// also advances the auto-increment counter so a following NextInt yields one
+// past the highest value. Duplicate registrations (same T, same value) are
+// ignored.
+func New[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) T {
+	var t T
+	PT(&t).set(v)
+	if iv, ok := any(v).(int); ok {
+		register[T](t, true, iv)
+	} else {
+		register[T](t, false, 0)
+	}
+	return t
 }
 
 // nextInt reports the next auto-increment value for T: one past the highest
