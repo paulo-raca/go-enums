@@ -132,6 +132,18 @@ func TestIntNextIsMaxPlusOne(t *testing.T) {
 	}
 }
 
+type Dup struct{ enum.StringEnum[Dup] }
+
+func TestDuplicateRegistrationPanics(t *testing.T) {
+	_ = enum.New[Dup]("x")
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic on duplicate registration")
+		}
+	}()
+	_ = enum.New[Dup]("x") // same value again
+}
+
 func TestIntLookup(t *testing.T) {
 	if got, ok := enum.FromInt[Color](1); !ok || got != Green {
 		t.Fatalf("FromInt(1) = %v, %v", got, ok)

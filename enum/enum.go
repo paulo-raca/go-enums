@@ -93,14 +93,14 @@ func bucketOf(t reflect.Type) *bucket {
 	return b
 }
 
-// register records a member under lock. Repeated identical members are ignored,
-// so re-running a var block (e.g. in tests) is harmless.
+// register records a member under lock. Registering the same value twice for a
+// type is a programmer error (a copy-pasted member, a clashing int) and panics.
 func register[T Enum](v T, hasInt bool, ival int) {
 	mu.Lock()
 	defer mu.Unlock()
 	b := bucketOf(reflect.TypeFor[T]())
 	if _, dup := b.valid[v]; dup {
-		return
+		panic(fmt.Sprintf("enum: duplicate registration of %T value %q", v, v.String()))
 	}
 	b.valid[v] = struct{}{}
 	b.order = append(b.order, v)
@@ -128,8 +128,7 @@ func register[T Enum](v T, hasInt bool, ival int) {
 // IntEnum has set(int), so the right one is selected at compile time and a
 // mismatched value type is a compile error. For an IntEnum, an explicit value
 // also advances the auto-increment counter so a following NextInt yields one
-// past the highest value. Duplicate registrations (same T, same value) are
-// ignored.
+// past the highest value. Registering the same value twice for a type panics.
 func New[T Enum, V any, PT interface {
 	*T
 	set(V)
