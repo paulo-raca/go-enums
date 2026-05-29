@@ -68,12 +68,11 @@ func (e *InvalidError[T]) Error() string {
 
 // bucket holds the registered members of a single enum type.
 type bucket struct {
-	order   []any            // members in registration order, for Values
-	valid   map[any]struct{} // membership, for Valid
-	names   map[string]any   // String() -> member, for FromString
-	ints    map[int]any      // value -> member, for FromInt (IntEnum only)
-	maxInt  int              // highest value seen so far (IntEnum only)
-	hasInts bool             // whether any int value has been registered
+	order  []any            // members in registration order, for Values
+	valid  map[any]struct{} // membership, for Valid
+	names  map[string]any   // String() -> member, for FromString
+	ints   map[int]any      // value -> member, for FromInt (IntEnum only)
+	maxInt int              // highest value seen so far (IntEnum only)
 }
 
 var (
@@ -107,13 +106,13 @@ func register[T Enum](v T, hasInt bool, ival int) {
 	b.order = append(b.order, v)
 	b.names[v.String()] = v
 	if hasInt {
-		b.ints[ival] = v
 		// Track the running maximum in O(1) so NextInt never has to scan the
-		// member set, even when explicit New values are interleaved.
-		if !b.hasInts || ival > b.maxInt {
+		// member set, even when explicit New values are interleaved. Check
+		// emptiness before inserting so the first value seeds maxInt.
+		if len(b.ints) == 0 || ival > b.maxInt {
 			b.maxInt = ival
 		}
-		b.hasInts = true
+		b.ints[ival] = v
 	}
 }
 
@@ -150,7 +149,7 @@ func New[T Enum, V any, PT interface {
 func nextInt[T Enum]() int {
 	mu.RLock()
 	defer mu.RUnlock()
-	if b := reg[reflect.TypeFor[T]()]; b != nil && b.hasInts {
+	if b := reg[reflect.TypeFor[T]()]; b != nil && len(b.ints) != 0 {
 		return b.maxInt + 1
 	}
 	return 0
