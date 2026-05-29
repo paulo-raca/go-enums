@@ -65,7 +65,6 @@ var (
 - JSON: `StringEnum` as a string, `IntEnum` as a number
 - a typed `*enum.InvalidValueError[T]` on bad input (use with `errors.As`)
 - `enum.Values[T]()`, `enum.Valid[T](v)`, `enum.FromValue[T](v)`
-- `v.IsZero()` to tell the zero value apart from a constructed member
 
 ## Closed by construction
 
@@ -73,10 +72,10 @@ The backing field and its setter are unexported, so `enum.New` (and the
 iota-like `enum.NextInt`) are the only way to mint a member. Any package may
 declare enum types and call them, but cannot forge arbitrary values — that's a
 compile-time error. The zero value of an enum is constructible but never
-registered, so `Valid` reports it `false` and `IsZero` reports it `true`. The
-zero value stays distinct even from a member backed by `""` or `0` — i.e.
-`MyEnum{} != enum.New[MyEnum](0)` — so you can use it as an "unset" sentinel and
-still have a real member at `0`/`""`.
+registered, so `Valid` reports it `false`. It also stays distinct even from a
+member backed by `""` or `0` — i.e. `MyEnum{} != enum.New[MyEnum](0)` — so you
+can use `MyEnum{}` as an "unset" sentinel (detect it with `== MyEnum{}` or
+`Valid`) and still have a real member at `0`/`""`.
 
 Registering the same value twice for a type — a copy-pasted member, or two
 `IntEnum` members sharing a value — **panics** at init time rather than passing

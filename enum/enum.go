@@ -28,7 +28,10 @@
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
 //   - a typed *InvalidValueError[T] on bad input  (works with errors.As)
 //   - Values[T](), Valid[T](), FromValue[T]()
-//   - IsZero() telling the zero value apart from a member, even one backed by "" / 0
+//
+// A constructed member is always distinct from the zero value — even one backed
+// by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
+// Valid).
 //
 // Closure: the backing field and its setter are unexported, so New (and the
 // iota-like NextInt) are the only ways to mint a member. Code in any package may

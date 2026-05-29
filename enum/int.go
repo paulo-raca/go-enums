@@ -28,11 +28,6 @@ func (e IntEnum[T]) String() string { return strconv.Itoa(e.val) }
 // Value returns the backing integer.
 func (e IntEnum[T]) Value() int { return e.val }
 
-// IsZero reports whether e is the Go zero value rather than a member produced by
-// New, NextInt, FromValue, or a successful Unmarshal. It distinguishes IntEnum{}
-// from New[T](0). See StringEnum.IsZero.
-func (e IntEnum[T]) IsZero() bool { return !e.present }
-
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key.
 func (e IntEnum[T]) MarshalText() ([]byte, error) { return []byte(strconv.Itoa(e.val)), nil }

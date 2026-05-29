@@ -22,11 +22,6 @@ func (e StringEnum[T]) String() string { return e.val }
 // Value returns the backing string (identical to String for StringEnum).
 func (e StringEnum[T]) Value() string { return e.val }
 
-// IsZero reports whether e is the Go zero value rather than a member produced by
-// New, FromValue, or a successful Unmarshal. It distinguishes StringEnum{} from
-// New[T](""), which String/Value alone cannot.
-func (e StringEnum[T]) IsZero() bool { return !e.present }
-
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
 // StringEnum encodes as a JSON string and works as a JSON map key.

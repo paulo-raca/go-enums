@@ -174,30 +174,23 @@ var (
 )
 
 func TestZeroValueDistinct(t *testing.T) {
-	var zs EmptyStr
-	if zs == Blank {
-		t.Fatal("zero EmptyStr must differ from New(\"\")")
+	// A member backed by "" / 0 stays distinct from the Go zero value, so the
+	// zero value works as an "unset" sentinel detectable with == Type{}.
+	if Blank == (EmptyStr{}) {
+		t.Fatal("New(\"\") must differ from EmptyStr{}")
 	}
-	if !zs.IsZero() || Blank.IsZero() {
-		t.Fatalf("IsZero wrong: zero=%v blank=%v", zs.IsZero(), Blank.IsZero())
+	if Naught == (ZeroInt{}) {
+		t.Fatal("New(0) must differ from ZeroInt{}")
 	}
-	if enum.Valid(zs) || !enum.Valid(Blank) {
+	if enum.Valid(EmptyStr{}) || !enum.Valid(Blank) {
 		t.Fatal("Valid wrong for EmptyStr zero vs member")
 	}
 	if Blank.String() != "" {
 		t.Fatalf("Blank.String() = %q", Blank.String())
 	}
 
-	var zi ZeroInt
-	if zi == Naught {
-		t.Fatal("zero ZeroInt must differ from New(0)")
-	}
-	if !zi.IsZero() || Naught.IsZero() {
-		t.Fatalf("IsZero wrong: zero=%v naught=%v", zi.IsZero(), Naught.IsZero())
-	}
-
-	// A member survives a JSON round-trip equal to the registered one (i.e. the
-	// unmarshalled value is also present, not a zero-with-matching-payload).
+	// A member survives a JSON round-trip equal to the registered one — not a
+	// zero value that merely shares the payload.
 	b, err := json.Marshal(Naught)
 	if err != nil {
 		t.Fatal(err)
@@ -206,8 +199,11 @@ func TestZeroValueDistinct(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got != Naught || got.IsZero() {
-		t.Fatalf("round-tripped Naught = %+v (IsZero=%v)", got, got.IsZero())
+	if got != Naught {
+		t.Fatalf("round-tripped Naught = %+v, want %+v", got, Naught)
+	}
+	if got == (ZeroInt{}) {
+		t.Fatal("round-tripped member must not equal the zero value")
 	}
 }
 
