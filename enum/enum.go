@@ -188,9 +188,21 @@ func Valid[T Enum](v T) bool {
 //	s, ok := enum.FromValue[Suit]("hearts")
 //	c, ok := enum.FromValue[Color](2)
 //
-// As with New, V is inferred from the argument and a type outside {string, int}
-// is a compile error.
-func FromValue[T Enum, V interface{ string | int }](v V) (T, bool) {
+// V is inferred from the argument. The set(V) constraint ties V to T's backing
+// type exactly as New does, so passing the wrong type for a given enum — e.g.
+// enum.FromValue[Suit](5) — is a compile error, not a runtime miss.
+func FromValue[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) (T, bool) {
+	return lookup[T](v)
+}
+
+// lookup is the unconstrained resolver shared by FromValue and the Unmarshal
+// methods. It carries no set(V) constraint, so the Unmarshal methods — whose T
+// is known only to be an Enum and cannot prove *T has set — can still call it.
+// FromValue layers the compile-time type check on top.
+func lookup[T Enum, V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
