@@ -214,6 +214,11 @@ func TestZeroValueMarshalGuard(t *testing.T) {
 	}
 	if _, err := zs.MarshalText(); err == nil {
 		t.Fatal("MarshalText of zero StringEnum should error")
+	} else {
+		var zme *enum.ZeroMarshalError[EmptyStr]
+		if !errors.As(err, &zme) {
+			t.Fatalf("want *ZeroMarshalError, got %T: %v", err, err)
+		}
 	}
 	if _, err := json.Marshal(zs); err == nil {
 		t.Fatal("json.Marshal of zero StringEnum should error")
@@ -222,6 +227,14 @@ func TestZeroValueMarshalGuard(t *testing.T) {
 	var zi ZeroInt
 	if zi.String() != "<invalid>" {
 		t.Fatalf("zero IntEnum String() = %q, want <invalid>", zi.String())
+	}
+	if _, err := zi.MarshalJSON(); err == nil {
+		t.Fatal("MarshalJSON of zero IntEnum should error")
+	} else {
+		var zme *enum.ZeroMarshalError[ZeroInt]
+		if !errors.As(err, &zme) {
+			t.Fatalf("want *ZeroMarshalError, got %T: %v", err, err)
+		}
 	}
 	if _, err := json.Marshal(zi); err == nil {
 		t.Fatal("json.Marshal of zero IntEnum should error")

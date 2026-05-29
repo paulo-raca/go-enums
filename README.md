@@ -63,7 +63,8 @@ var (
 - `String()` — `fmt.Stringer`
 - `MarshalText` / `UnmarshalText` — `encoding.Text{Marshaler,Unmarshaler}`
 - JSON: `StringEnum` as a string, `IntEnum` as a number
-- a typed `*enum.InvalidValueError[T]` on bad input (use with `errors.As`)
+- typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
+  (marshalling the zero value) errors, both matchable with `errors.As`
 - `enum.Values[T]()`, `enum.Valid[T](v)`, `enum.FromValue[T](v)`
 
 ## Closed by construction

@@ -26,7 +26,7 @@
 //   - JSON marshal/unmarshal:
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
-//   - a typed *InvalidValueError[T] on bad input  (works with errors.As)
+//   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
 //   - Values[T](), Valid[T](), FromValue[T]()
 //
 // A constructed member is always distinct from the zero value — even one backed
@@ -79,12 +79,15 @@ func (e *InvalidValueError[T]) Error() string {
 // registered member.
 const invalidString = "<invalid>"
 
-// zeroMarshalErr is returned by the Marshal methods when asked to encode the
-// zero value: it is not a registered member and the output ("" / 0) would not
-// round-trip, so refuse it rather than emit something Unmarshal would reject.
-func zeroMarshalErr[T Enum]() error {
+// ZeroMarshalError is returned by the Marshal methods when asked to encode the
+// zero value of T: it is not a registered member and the output ("" / 0) would
+// not round-trip, so it is refused rather than emitted for Unmarshal to reject.
+// Match it with errors.As(err, new(*enum.ZeroMarshalError[YourEnum])).
+type ZeroMarshalError[T Enum] struct{}
+
+func (e *ZeroMarshalError[T]) Error() string {
 	var zero T
-	return fmt.Errorf("enum: refusing to marshal zero value of %T", zero)
+	return fmt.Sprintf("enum: refusing to marshal zero value of %T", zero)
 }
 
 // bucket holds the registered members of a single enum type.

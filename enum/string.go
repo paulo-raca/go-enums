@@ -32,10 +32,10 @@ func (e StringEnum[T]) Value() string { return e.val }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
 // StringEnum encodes as a JSON string and works as a JSON map key. Encoding the
-// zero value is refused; see zeroMarshalErr.
+// zero value yields *ZeroMarshalError[T].
 func (e StringEnum[T]) MarshalText() ([]byte, error) {
 	if !e.present {
-		return nil, zeroMarshalErr[T]()
+		return nil, &ZeroMarshalError[T]{}
 	}
 	return []byte(e.val), nil
 }

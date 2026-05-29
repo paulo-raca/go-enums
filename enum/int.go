@@ -36,20 +36,20 @@ func (e IntEnum[T]) Value() int { return e.val }
 
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key. Encoding the
-// zero value is refused; see zeroMarshalErr.
+// zero value yields *ZeroMarshalError[T].
 func (e IntEnum[T]) MarshalText() ([]byte, error) {
 	if !e.present {
-		return nil, zeroMarshalErr[T]()
+		return nil, &ZeroMarshalError[T]{}
 	}
 	return []byte(strconv.Itoa(e.val)), nil
 }
 
 // MarshalJSON implements json.Marshaler, emitting a bare JSON number.
 // encoding/json prefers this over MarshalText for ordinary values. Encoding the
-// zero value is refused; see zeroMarshalErr.
+// zero value yields *ZeroMarshalError[T].
 func (e IntEnum[T]) MarshalJSON() ([]byte, error) {
 	if !e.present {
-		return nil, zeroMarshalErr[T]()
+		return nil, &ZeroMarshalError[T]{}
 	}
 	return []byte(strconv.Itoa(e.val)), nil
 }
