@@ -7,7 +7,7 @@ package enum
 //
 // T appears only in method signatures — it is a phantom type parameter carrying
 // the concrete identity so UnmarshalText can resolve against the right member
-// set and return *InvalidError[T]. It is never a stored field.
+// set and return *InvalidValueError[T]. It is never a stored field.
 type StringEnum[T Enum] struct {
 	val string
 }
@@ -31,12 +31,12 @@ func (e *StringEnum[T]) set(s string) { e.val = s }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It resolves text against
 // T's registered members and copies in the canonical value, or returns
-// *InvalidError[T]. JSON null is left untouched (the text path only fires on
+// *InvalidValueError[T]. JSON null is left untouched (the text path only fires on
 // quoted strings).
 func (e *StringEnum[T]) UnmarshalText(text []byte) error {
 	v, ok := FromString[T](string(text))
 	if !ok {
-		return &InvalidError[T]{Value: string(text)}
+		return &InvalidValueError[T]{Value: string(text)}
 	}
 	e.val = v.String()
 	return nil

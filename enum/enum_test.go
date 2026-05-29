@@ -94,9 +94,9 @@ func TestStringJSON(t *testing.T) {
 	}
 
 	err = json.Unmarshal([]byte(`"bogus"`), &r)
-	var invalid *enum.InvalidError[Suit]
+	var invalid *enum.InvalidValueError[Suit]
 	if !errors.As(err, &invalid) || invalid.Value != "bogus" {
-		t.Fatalf("want *InvalidError, got %v", err)
+		t.Fatalf("want *InvalidValueError, got %v", err)
 	}
 }
 
@@ -173,9 +173,9 @@ func TestIntJSONIsNumber(t *testing.T) {
 	}
 
 	err = json.Unmarshal([]byte(`99`), &c)
-	var invalid *enum.InvalidError[Color]
+	var invalid *enum.InvalidValueError[Color]
 	if !errors.As(err, &invalid) {
-		t.Fatalf("want *InvalidError, got %v", err)
+		t.Fatalf("want *InvalidValueError, got %v", err)
 	}
 }
 

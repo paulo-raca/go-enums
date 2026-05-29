@@ -63,7 +63,7 @@ var (
 - `String()` — `fmt.Stringer`
 - `MarshalText` / `UnmarshalText` — `encoding.Text{Marshaler,Unmarshaler}`
 - JSON: `StringEnum` as a string, `IntEnum` as a number
-- a typed `*enum.InvalidError[T]` on bad input (use with `errors.As`)
+- a typed `*enum.InvalidValueError[T]` on bad input (use with `errors.As`)
 - `enum.Values[T]()`, `enum.Valid[T](v)`, `enum.FromString[T](s)`, `enum.FromInt[T](n)`
 
 ## Closed by construction
@@ -91,7 +91,7 @@ if !ok {
 
 var got Suit
 err := json.Unmarshal(data, &got)
-var invalid *enum.InvalidError[Suit]
+var invalid *enum.InvalidValueError[Suit]
 if errors.As(err, &invalid) {
 	// invalid.Value holds the offending input
 }

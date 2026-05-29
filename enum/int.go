@@ -13,7 +13,7 @@ import (
 // Only the integer value is persisted; there is no separate stored name.
 // String() is therefore the decimal form of the value, and JSON encodes as a
 // bare number. T carries the concrete identity for UnmarshalText/JSON and
-// *InvalidError[T].
+// *InvalidValueError[T].
 type IntEnum[T Enum] struct {
 	val int
 }
@@ -37,28 +37,28 @@ func (e IntEnum[T]) MarshalJSON() ([]byte, error) { return []byte(strconv.Itoa(e
 func (e *IntEnum[T]) set(n int) { e.val = n }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It parses a decimal value,
-// checks membership in T, and stores it, or returns *InvalidError[T].
+// checks membership in T, and stores it, or returns *InvalidValueError[T].
 func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 	n, err := strconv.Atoi(string(text))
 	if err != nil {
-		return &InvalidError[T]{Value: string(text)}
+		return &InvalidValueError[T]{Value: string(text)}
 	}
 	if _, ok := FromInt[T](n); !ok {
-		return &InvalidError[T]{Value: string(text)}
+		return &InvalidValueError[T]{Value: string(text)}
 	}
 	e.val = n
 	return nil
 }
 
 // UnmarshalJSON implements json.Unmarshaler. It parses a JSON number, checks
-// membership in T, and stores it, or returns *InvalidError[T].
+// membership in T, and stores it, or returns *InvalidValueError[T].
 func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 	var n int
 	if err := json.Unmarshal(data, &n); err != nil {
-		return &InvalidError[T]{Value: string(data)}
+		return &InvalidValueError[T]{Value: string(data)}
 	}
 	if _, ok := FromInt[T](n); !ok {
-		return &InvalidError[T]{Value: strconv.Itoa(n)}
+		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
 	}
 	e.val = n
 	return nil

@@ -26,7 +26,7 @@
 //   - JSON marshal/unmarshal:
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
-//   - a typed *InvalidError[T] on bad input  (works with errors.As)
+//   - a typed *InvalidValueError[T] on bad input  (works with errors.As)
 //   - Values[T](), Valid[T](), FromString[T](), FromInt[T]()
 //
 // Closure: the backing field and its setter are unexported, so New (and the
@@ -55,13 +55,13 @@ type Enum interface {
 	fmt.Stringer
 }
 
-// InvalidError is returned when an input does not name a registered member of
-// T. Match it with errors.As(err, new(*enum.InvalidError[YourEnum])).
-type InvalidError[T Enum] struct {
+// InvalidValueError is returned when an input does not name a registered
+// member of T. Match it with errors.As(err, new(*enum.InvalidValueError[YourEnum])).
+type InvalidValueError[T Enum] struct {
 	Value string
 }
 
-func (e *InvalidError[T]) Error() string {
+func (e *InvalidValueError[T]) Error() string {
 	var zero T
 	return fmt.Sprintf("invalid %T: %q", zero, e.Value)
 }
