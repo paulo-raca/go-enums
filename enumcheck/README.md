@@ -1,0 +1,53 @@
+# enumcheck
+
+A [`go/analysis`](https://pkg.go.dev/golang.org/x/tools/go/analysis) linter for
+[`github.com/paulo-raca/go-enums/enum`](../enum). Because the library's members
+are package-level `var`s (not `const`s), the standard `exhaustive` linter can't
+see them — `enumcheck` fills that gap, plus it enforces the patterns that make
+the member set statically knowable in the first place.
+
+It lives in its own module so the core `enum` package stays dependency-free;
+`golang.org/x/tools` is pulled in only by users who install the linter.
+
+## Install & run
+
+```sh
+go install github.com/paulo-raca/go-enums/enumcheck/cmd/enumcheck@latest
+
+enumcheck ./...
+# or through go vet:
+go vet -vettool=$(which enumcheck) ./...
+```
+
+## What it checks
+
+1. **Enum shape.** A type that embeds `enum.StringEnum`/`enum.IntEnum` must embed
+   exactly that one base and nothing else, parameterised by itself:
+   `type Suit struct{ enum.StringEnum[Suit] }`. Extra fields or a mismatched
+   `Self` are reported.
+2. **Member declaration.** `enum.New` / `enum.NextInt` may appear only as the
+   direct initialiser of a package-level `var`; member vars may not be
+   reassigned; and members must be declared in the enum type's own package
+   (so the set is complete and statically enumerable).
+3. **Switch exhaustiveness.** In a `switch` over an enum type, every case must
+   name a member of that enum, and either all members are covered or a `default`
+   clause is present. Works across packages via analysis facts.
+
+```go
+func describe(s Suit) string {
+	switch s { // enumcheck: non-exhaustive switch on Suit: missing Spades
+	case Hearts:
+		return "h"
+	case Diamonds:
+		return "d"
+	}
+	return ""
+}
+```
+
+## Limitations
+
+- Members must be created in the type's defining package (rule 2); members
+  registered elsewhere at runtime are invisible to static analysis (and rejected).
+- Re-assignment is detected directly (`Hearts = …`); mutation via a taken address
+  (`p := &Hearts; *p = …`) is not yet flagged.

@@ -35,3 +35,11 @@ jobs:
 
       - name: Test
         run: go test -race ./...
+
+      - name: Vet enumcheck module
+        run: go vet ./...
+        working-directory: enumcheck
+
+      - name: Test enumcheck module
+        run: go test ./...
+        working-directory: enumcheck

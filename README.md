@@ -112,3 +112,25 @@ if errors.As(err, &invalid) {
 	// invalid.Value holds the offending input
 }
 ```
+
+## Switch exhaustiveness (`enumcheck`)
+
+Because members are package-level `var`s rather than `const`s, the stock
+`exhaustive` linter can't check `switch`es over these enums. The optional
+[`enumcheck`](enumcheck) analyzer does, and also enforces the patterns that keep
+the member set statically knowable:
+
+```sh
+go install github.com/paulo-raca/go-enums/enumcheck/cmd/enumcheck@latest
+enumcheck ./...
+```
+
+```go
+switch s { // enumcheck: non-exhaustive switch on Suit: missing Spades
+case Hearts:
+case Diamonds:
+}
+```
+
+It's a separate module, so it adds no dependencies to the `enum` package itself.
+See [enumcheck/README.md](enumcheck/README.md).
