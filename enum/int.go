@@ -22,19 +22,37 @@ type IntEnum[T Enum] struct {
 	present bool
 }
 
-// String returns the decimal form of the backing value. Implements fmt.Stringer.
-func (e IntEnum[T]) String() string { return strconv.Itoa(e.val) }
+// String returns the decimal form of the backing value, or "<invalid>" for the
+// zero value. Implements fmt.Stringer. The check is the lock-free present flag.
+func (e IntEnum[T]) String() string {
+	if !e.present {
+		return invalidString
+	}
+	return strconv.Itoa(e.val)
+}
 
 // Value returns the backing integer.
 func (e IntEnum[T]) Value() int { return e.val }
 
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
-// This is what encoding/json uses for an IntEnum used as a map key.
-func (e IntEnum[T]) MarshalText() ([]byte, error) { return []byte(strconv.Itoa(e.val)), nil }
+// This is what encoding/json uses for an IntEnum used as a map key. Encoding the
+// zero value is refused; see zeroMarshalErr.
+func (e IntEnum[T]) MarshalText() ([]byte, error) {
+	if !e.present {
+		return nil, zeroMarshalErr[T]()
+	}
+	return []byte(strconv.Itoa(e.val)), nil
+}
 
 // MarshalJSON implements json.Marshaler, emitting a bare JSON number.
-// encoding/json prefers this over MarshalText for ordinary values.
-func (e IntEnum[T]) MarshalJSON() ([]byte, error) { return []byte(strconv.Itoa(e.val)), nil }
+// encoding/json prefers this over MarshalText for ordinary values. Encoding the
+// zero value is refused; see zeroMarshalErr.
+func (e IntEnum[T]) MarshalJSON() ([]byte, error) {
+	if !e.present {
+		return nil, zeroMarshalErr[T]()
+	}
+	return []byte(strconv.Itoa(e.val)), nil
+}
 
 // set is the unexported write path that closes the set; see StringEnum.set.
 // It shares the name with StringEnum's set(string) so a single New serves both.

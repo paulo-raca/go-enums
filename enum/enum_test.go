@@ -207,6 +207,32 @@ func TestZeroValueDistinct(t *testing.T) {
 	}
 }
 
+func TestZeroValueMarshalGuard(t *testing.T) {
+	var zs EmptyStr
+	if zs.String() != "<invalid>" {
+		t.Fatalf("zero StringEnum String() = %q, want <invalid>", zs.String())
+	}
+	if _, err := zs.MarshalText(); err == nil {
+		t.Fatal("MarshalText of zero StringEnum should error")
+	}
+	if _, err := json.Marshal(zs); err == nil {
+		t.Fatal("json.Marshal of zero StringEnum should error")
+	}
+
+	var zi ZeroInt
+	if zi.String() != "<invalid>" {
+		t.Fatalf("zero IntEnum String() = %q, want <invalid>", zi.String())
+	}
+	if _, err := json.Marshal(zi); err == nil {
+		t.Fatal("json.Marshal of zero IntEnum should error")
+	}
+
+	// A member backed by 0 is present, so it still marshals fine.
+	if _, err := json.Marshal(Naught); err != nil {
+		t.Fatalf("marshalling New(0) should succeed: %v", err)
+	}
+}
+
 type Dup struct{ enum.StringEnum[Dup] }
 
 func TestDuplicateRegistrationPanics(t *testing.T) {

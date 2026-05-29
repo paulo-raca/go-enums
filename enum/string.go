@@ -16,16 +16,29 @@ type StringEnum[T Enum] struct {
 	present bool
 }
 
-// String returns the member's canonical string. Implements fmt.Stringer.
-func (e StringEnum[T]) String() string { return e.val }
+// String returns the member's canonical string, or "<invalid>" for the zero
+// value. Implements fmt.Stringer. The check is the lock-free present flag, so
+// String stays cheap.
+func (e StringEnum[T]) String() string {
+	if !e.present {
+		return invalidString
+	}
+	return e.val
+}
 
 // Value returns the backing string (identical to String for StringEnum).
 func (e StringEnum[T]) Value() string { return e.val }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
-// StringEnum encodes as a JSON string and works as a JSON map key.
-func (e StringEnum[T]) MarshalText() ([]byte, error) { return []byte(e.val), nil }
+// StringEnum encodes as a JSON string and works as a JSON map key. Encoding the
+// zero value is refused; see zeroMarshalErr.
+func (e StringEnum[T]) MarshalText() ([]byte, error) {
+	if !e.present {
+		return nil, zeroMarshalErr[T]()
+	}
+	return []byte(e.val), nil
+}
 
 // set is the unexported write path. Promoted onto *T it keeps this package's
 // identity, which is what closes the set while still letting New construct

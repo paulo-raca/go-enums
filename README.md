@@ -75,7 +75,11 @@ compile-time error. The zero value of an enum is constructible but never
 registered, so `Valid` reports it `false`. It also stays distinct even from a
 member backed by `""` or `0` — i.e. `MyEnum{} != enum.New[MyEnum](0)` — so you
 can use `MyEnum{}` as an "unset" sentinel (detect it with `== MyEnum{}` or
-`Valid`) and still have a real member at `0`/`""`.
+`Valid`) and still have a real member at `0`/`""`. The zero value renders as
+`<invalid>` from `String()` and is refused by the marshallers (its `""`/`0`
+output wouldn't round-trip), so an unset enum field surfaces as a marshal error
+rather than silently corrupt data — use `json:",omitzero"` or a pointer if
+"unset" should be serializable.
 
 Registering the same value twice for a type — a copy-pasted member, or two
 `IntEnum` members sharing a value — **panics** at init time rather than passing
