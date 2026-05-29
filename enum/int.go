@@ -39,9 +39,9 @@ func (e IntEnum[T]) Value() int { return e.val }
 // Mirrors reflect.Value.IsValid.
 func (e IntEnum[T]) IsValid() bool { return e.pos != 0 }
 
-// Position returns the member's 1-based registration order, or 0 for the zero
+// Position returns the member's 0-based registration order, or -1 for the zero
 // value. See StringEnum.Position.
-func (e IntEnum[T]) Position() int { return e.pos }
+func (e IntEnum[T]) Position() int { return e.pos - 1 }
 
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key. Encoding the
@@ -87,7 +87,7 @@ func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
 	e.set(n)
-	e.setPos(v.Position())
+	e.setPos(v.Position() + 1) // Position is 0-based; setPos wants the 1-based slot
 	return nil
 }
 
@@ -104,7 +104,7 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
 	}
 	e.set(n)
-	e.setPos(v.Position())
+	e.setPos(v.Position() + 1) // Position is 0-based; setPos wants the 1-based slot
 	return nil
 }
 

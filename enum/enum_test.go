@@ -138,19 +138,19 @@ func TestIntNextIsMaxPlusOne(t *testing.T) {
 }
 
 func TestPosition(t *testing.T) {
-	// 1-based registration order; zero value is 0.
-	if Hearts.Position() != 1 || Diamonds.Position() != 2 || Spades.Position() != 3 {
+	// 0-based registration order; zero value is -1.
+	if Hearts.Position() != 0 || Diamonds.Position() != 1 || Spades.Position() != 2 {
 		t.Fatalf("positions = %d,%d,%d",
 			Hearts.Position(), Diamonds.Position(), Spades.Position())
 	}
 	var z Suit
-	if z.Position() != 0 {
-		t.Fatalf("zero position = %d, want 0", z.Position())
+	if z.Position() != -1 {
+		t.Fatalf("zero position = %d, want -1", z.Position())
 	}
 	// Values is in registration order, and Position matches the index.
 	for i, v := range enum.Values[Suit]() {
-		if v.Position() != i+1 {
-			t.Fatalf("Values[%d].Position() = %d, want %d", i, v.Position(), i+1)
+		if v.Position() != i {
+			t.Fatalf("Values[%d].Position() = %d, want %d", i, v.Position(), i)
 		}
 	}
 	// Position survives a JSON round-trip (it is copied from the canonical member).
@@ -162,8 +162,8 @@ func TestPosition(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Position() != 2 {
-		t.Fatalf("round-tripped Diamonds.Position() = %d, want 2", got.Position())
+	if got.Position() != 1 {
+		t.Fatalf("round-tripped Diamonds.Position() = %d, want 1", got.Position())
 	}
 }
 

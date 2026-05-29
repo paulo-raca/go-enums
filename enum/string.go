@@ -35,9 +35,10 @@ func (e StringEnum[T]) Value() string { return e.val }
 // Mirrors reflect.Value.IsValid.
 func (e StringEnum[T]) IsValid() bool { return e.pos != 0 }
 
-// Position returns the member's 1-based registration order, or 0 for the zero
+// Position returns the member's 0-based registration order, or -1 for the zero
 // value. Members are ordered by registration; Values returns them in this order.
-func (e StringEnum[T]) Position() int { return e.pos }
+// (Internally pos is 1-based so 0 marks the zero value; Position subtracts one.)
+func (e StringEnum[T]) Position() int { return e.pos - 1 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
@@ -75,6 +76,6 @@ func (e *StringEnum[T]) UnmarshalText(text []byte) error {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
 	e.set(v.String())
-	e.setPos(v.Position())
+	e.setPos(v.Position() + 1) // Position is 0-based; setPos wants the 1-based slot
 	return nil
 }

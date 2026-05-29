@@ -27,8 +27,8 @@
 //   - StringEnum encodes as a JSON string (via the text interfaces)
 //   - IntEnum    encodes as a JSON number (via Marshal/UnmarshalJSON)
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
-//   - IsValid() and Position() methods on each member (Position is 1-based
-//     registration order; 0 marks the zero value)
+//   - IsValid() and Position() methods on each member (Position is 0-based
+//     registration order; -1 marks the zero value)
 //   - Values[T](), Valid[T](value), FromValue[T](value)
 //
 // A constructed member is always distinct from the zero value — even one backed
@@ -59,8 +59,8 @@ import (
 // IntEnum[Self]. Beyond being comparable and a fmt.Stringer, it requires the
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
-// types is closed at the constraint level. Position exposes the 1-based
-// registration order (0 for the zero value).
+// types is closed at the constraint level. Position exposes the 0-based
+// registration order (-1 for the zero value).
 type Enum interface {
 	comparable
 	fmt.Stringer

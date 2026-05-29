@@ -68,7 +68,7 @@ var (
 - `enum.Values[T]()` (in registration order), `enum.FromValue[T](value)`
 - `enum.Valid[T](value)` — does a backing `int`/`string` name a registered member?
 - `member.IsValid()` — is this a real member, or the zero value? (lock-free)
-- `member.Position()` — 1-based registration order (`0` for the zero value), for
+- `member.Position()` — 0-based registration order (`-1` for the zero value), for
   sorting enums by insertion
 
 ## Closed by construction
