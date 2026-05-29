@@ -28,6 +28,8 @@
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
 //   - IsValid() and Position() methods on each member (Position is 0-based
 //     registration order; -1 marks the zero value)
+//   - Compare()/Less() ordering members by Position — Go has no operator
+//     overloading, so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
 //   - Values[T](), Valid[T](value), FromValue[T](value)
 //
 // A constructed member is always distinct from the zero value — even one backed

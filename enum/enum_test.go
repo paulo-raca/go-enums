@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
@@ -164,6 +165,34 @@ func TestPosition(t *testing.T) {
 	}
 	if got.Position() != 1 {
 		t.Fatalf("round-tripped Diamonds.Position() = %d, want 1", got.Position())
+	}
+}
+
+func TestOrder(t *testing.T) {
+	// Compare/Less follow registration order (Hearts, Diamonds, Spades).
+	if Hearts.Compare(Spades) >= 0 || Spades.Compare(Hearts) <= 0 {
+		t.Fatal("Compare disagrees with registration order")
+	}
+	if Diamonds.Compare(Diamonds) != 0 {
+		t.Fatal("Compare with self should be 0")
+	}
+	if !Hearts.Less(Diamonds) || Diamonds.Less(Hearts) {
+		t.Fatal("Less wrong")
+	}
+	// All four operator spellings via Compare.
+	if !(Hearts.Compare(Diamonds) < 0 && Hearts.Compare(Diamonds) <= 0 &&
+		Spades.Compare(Diamonds) > 0 && Spades.Compare(Diamonds) >= 0) {
+		t.Fatal("operator spellings via Compare are inconsistent")
+	}
+	// Sortable straight from the method expression.
+	xs := []Suit{Spades, Hearts, Diamonds}
+	slices.SortFunc(xs, Suit.Compare)
+	if !slices.Equal(xs, []Suit{Hearts, Diamonds, Spades}) {
+		t.Fatalf("sorted = %v", xs)
+	}
+	// IntEnum orders by registration position, not by int value.
+	if !Red.Less(Blue) || Blue.Compare(Red) <= 0 {
+		t.Fatal("Color order wrong")
 	}
 }
 

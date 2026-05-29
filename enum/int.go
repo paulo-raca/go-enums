@@ -1,6 +1,7 @@
 package enum
 
 import (
+	"cmp"
 	"encoding/json"
 	"strconv"
 )
@@ -42,6 +43,14 @@ func (e IntEnum[T]) IsValid() bool { return e.pos != 0 }
 // Position returns the member's 0-based registration order, or -1 for the zero
 // value. See StringEnum.Position.
 func (e IntEnum[T]) Position() int { return e.pos - 1 }
+
+// Compare orders members by registration position (NOT by their int value),
+// returning -1, 0, or +1. See StringEnum.Compare.
+func (e IntEnum[T]) Compare(other T) int { return cmp.Compare(e.Position(), other.Position()) }
+
+// Less reports whether e sorts before other by registration position; shorthand
+// for e.Compare(other) < 0.
+func (e IntEnum[T]) Less(other T) bool { return e.Position() < other.Position() }
 
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key. Encoding the

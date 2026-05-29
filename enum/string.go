@@ -1,5 +1,7 @@
 package enum
 
+import "cmp"
+
 // StringEnum is embedded (parameterised over the embedding type) to turn a
 // struct into a string-backed enum member:
 //
@@ -39,6 +41,17 @@ func (e StringEnum[T]) IsValid() bool { return e.pos != 0 }
 // value. Members are ordered by registration; Values returns them in this order.
 // (Internally pos is 1-based so 0 marks the zero value; Position subtracts one.)
 func (e StringEnum[T]) Position() int { return e.pos - 1 }
+
+// Compare orders members by registration position, returning -1, 0, or +1 as e
+// sorts before, equal to, or after other. Go has no operator overloading, so
+// "a < b" is spelled "a.Compare(b) < 0" (and likewise <=, >, >=); sort with
+// slices.SortFunc(xs, MyEnum.Compare). The zero value (Position -1) sorts before
+// every registered member.
+func (e StringEnum[T]) Compare(other T) int { return cmp.Compare(e.Position(), other.Position()) }
+
+// Less reports whether e sorts before other by registration position; it is
+// shorthand for e.Compare(other) < 0.
+func (e StringEnum[T]) Less(other T) bool { return e.Position() < other.Position() }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
