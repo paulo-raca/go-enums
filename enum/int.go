@@ -22,11 +22,11 @@ type IntEnum[T Enum] struct {
 	pos int
 }
 
-// String returns the decimal form of the backing value, or "<invalid>" for the
-// zero value. Implements fmt.Stringer. The check is the lock-free pos field.
+// String returns the decimal form of the backing value, or "<invalid T>" for
+// the zero value. Implements fmt.Stringer. The check is the lock-free pos field.
 func (e IntEnum[T]) String() string {
 	if e.pos == 0 {
-		return invalidString
+		return invalidString[T]()
 	}
 	return strconv.Itoa(e.val)
 }

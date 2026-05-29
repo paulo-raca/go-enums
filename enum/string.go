@@ -17,12 +17,12 @@ type StringEnum[T Enum] struct {
 	pos int
 }
 
-// String returns the member's canonical string, or "<invalid>" for the zero
-// value. Implements fmt.Stringer. The check is the lock-free pos field, so
-// String stays cheap.
+// String returns the member's canonical string, or "<invalid T>" for the zero
+// value. Implements fmt.Stringer. The check is the lock-free pos field, so the
+// common path stays cheap (only the rare zero-value path reflects on T).
 func (e StringEnum[T]) String() string {
 	if e.pos == 0 {
-		return invalidString
+		return invalidString[T]()
 	}
 	return e.val
 }

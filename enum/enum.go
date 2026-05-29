@@ -32,8 +32,9 @@
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
-// Valid). The zero value renders as "<invalid>" from String and is refused by
-// the Marshal methods (its "" / 0 output would not round-trip).
+// Valid). The zero value renders as "<invalid T>" (e.g. "<invalid Suit>") from
+// String and is refused by the Marshal methods (its "" / 0 output would not
+// round-trip).
 //
 // Closure: the backing field and its setter are unexported, so New (and the
 // iota-like NextInt) are the only ways to mint a member. Code in any package may
@@ -79,8 +80,11 @@ func (e *InvalidValueError[T]) Error() string {
 }
 
 // invalidString is what String() renders for the zero value, which names no
-// registered member.
-const invalidString = "<invalid>"
+// registered member: a placeholder naming the concrete enum type, e.g.
+// "<invalid Suit>".
+func invalidString[T Enum]() string {
+	return "<invalid " + reflect.TypeFor[T]().Name() + ">"
+}
 
 // ZeroMarshalError is returned by the Marshal methods when asked to encode the
 // zero value of T: it is not a registered member and the output ("" / 0) would

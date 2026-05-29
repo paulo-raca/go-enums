@@ -243,8 +243,8 @@ func TestZeroValueDistinct(t *testing.T) {
 
 func TestZeroValueMarshalGuard(t *testing.T) {
 	var zs EmptyStr
-	if zs.String() != "<invalid>" {
-		t.Fatalf("zero StringEnum String() = %q, want <invalid>", zs.String())
+	if zs.String() != "<invalid EmptyStr>" {
+		t.Fatalf("zero StringEnum String() = %q, want <invalid EmptyStr>", zs.String())
 	}
 	if _, err := zs.MarshalText(); err == nil {
 		t.Fatal("MarshalText of zero StringEnum should error")
@@ -259,8 +259,8 @@ func TestZeroValueMarshalGuard(t *testing.T) {
 	}
 
 	var zi ZeroInt
-	if zi.String() != "<invalid>" {
-		t.Fatalf("zero IntEnum String() = %q, want <invalid>", zi.String())
+	if zi.String() != "<invalid ZeroInt>" {
+		t.Fatalf("zero IntEnum String() = %q, want <invalid ZeroInt>", zi.String())
 	}
 	if _, err := zi.MarshalJSON(); err == nil {
 		t.Fatal("MarshalJSON of zero IntEnum should error")

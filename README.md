@@ -81,7 +81,7 @@ registered, so `Valid` reports it `false`. It also stays distinct even from a
 member backed by `""` or `0` — i.e. `MyEnum{} != enum.New[MyEnum](0)` — so you
 can use `MyEnum{}` as an "unset" sentinel (detect it with `== MyEnum{}` or
 `Valid`) and still have a real member at `0`/`""`. The zero value renders as
-`<invalid>` from `String()` and is refused by the marshallers (its `""`/`0`
+`<invalid Suit>` (the type name) from `String()` and is refused by the marshallers (its `""`/`0`
 output wouldn't round-trip), so an unset enum field surfaces as a marshal error
 rather than silently corrupt data — use `json:",omitzero"` or a pointer if
 "unset" should be serializable.
