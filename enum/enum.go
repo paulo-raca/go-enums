@@ -97,13 +97,6 @@ func bucketOf(t reflect.Type) *bucket {
 	return b
 }
 
-// register records a member, taking the write lock. See registerLocked.
-func register[T Enum](v T, hasInt bool, ival int) {
-	mu.Lock()
-	defer mu.Unlock()
-	registerLocked[T](v, hasInt, ival)
-}
-
 // registerLocked records a member and assumes the caller holds mu for writing.
 // Registering the same value twice for a type is a programmer error (a
 // copy-pasted member, a clashing int) and panics.
@@ -145,10 +138,12 @@ func New[T Enum, V any, PT interface {
 }](v V) T {
 	var t T
 	PT(&t).set(v)
+	mu.Lock()
+	defer mu.Unlock()
 	if iv, ok := any(v).(int); ok {
-		register[T](t, true, iv)
+		registerLocked[T](t, true, iv)
 	} else {
-		register[T](t, false, 0)
+		registerLocked[T](t, false, 0)
 	}
 	return t
 }
