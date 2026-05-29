@@ -2,13 +2,12 @@ package enum_test
 
 import (
 	"encoding/json"
-	"errors"
-	"reflect"
 	"slices"
 	"sync"
 	"testing"
 
 	"github.com/paulo-raca/go-enums/enum"
+	"github.com/stretchr/testify/require"
 )
 
 // --- string enum under test ---------------------------------------------
@@ -53,144 +52,96 @@ var (
 )
 
 func TestStringBasics(t *testing.T) {
-	if Hearts.String() != "hearts" {
-		t.Fatalf("String = %q", Hearts.String())
-	}
-	if !Hearts.IsValid() {
-		t.Fatal("registered member should be valid")
-	}
+	require.Equal(t, "hearts", Hearts.String())
+	require.True(t, Hearts.IsValid())
+
 	var zero Suit
-	if zero.IsValid() {
-		t.Fatal("zero value must not be valid")
-	}
+	require.False(t, zero.IsValid(), "zero value must not be valid")
+
 	got, ok := enum.FromValue[Suit]("spades")
-	if !ok || got != Spades {
-		t.Fatalf("FromValue = %v, %v", got, ok)
-	}
-	if _, ok := enum.FromValue[Suit]("nope"); ok {
-		t.Fatal("unknown string must miss")
-	}
+	require.True(t, ok)
+	require.Equal(t, Spades, got)
+
+	_, ok = enum.FromValue[Suit]("nope")
+	require.False(t, ok, "unknown string must miss")
+
 	// package-level Valid takes the backing value, not the member.
-	if !enum.Valid[Suit]("hearts") || enum.Valid[Suit]("nope") {
-		t.Fatal("enum.Valid[Suit](string) wrong")
-	}
+	require.True(t, enum.Valid[Suit]("hearts"))
+	require.False(t, enum.Valid[Suit]("nope"))
 }
 
 func TestStringValuesOrder(t *testing.T) {
-	want := []Suit{Hearts, Diamonds, Spades}
-	if got := enum.Values[Suit](); !reflect.DeepEqual(got, want) {
-		t.Fatalf("Values = %v, want %v", got, want)
-	}
+	require.Equal(t, []Suit{Hearts, Diamonds, Spades}, enum.Values[Suit]())
 }
 
 func TestStringJSON(t *testing.T) {
 	b, err := json.Marshal(Diamonds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(b) != `"diamonds"` {
-		t.Fatalf("marshal = %s", b)
-	}
+	require.NoError(t, err)
+	require.Equal(t, `"diamonds"`, string(b))
+
 	var r Suit
-	if err := json.Unmarshal([]byte(`"hearts"`), &r); err != nil {
-		t.Fatal(err)
-	}
-	if r != Hearts {
-		t.Fatalf("unmarshal = %v", r)
-	}
+	require.NoError(t, json.Unmarshal([]byte(`"hearts"`), &r))
+	require.Equal(t, Hearts, r)
 
 	err = json.Unmarshal([]byte(`"bogus"`), &r)
 	var invalid *enum.InvalidValueError[Suit]
-	if !errors.As(err, &invalid) || invalid.Value != "bogus" {
-		t.Fatalf("want *InvalidValueError, got %v", err)
-	}
+	require.ErrorAs(t, err, &invalid)
+	require.Equal(t, "bogus", invalid.Value)
 }
 
 func TestStringAsJSONMapKey(t *testing.T) {
-	m := map[Suit]int{Spades: 3}
-	b, err := json.Marshal(m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(b) != `{"spades":3}` {
-		t.Fatalf("map marshal = %s", b)
-	}
+	b, err := json.Marshal(map[Suit]int{Spades: 3})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"spades":3}`, string(b))
 }
 
 func TestIntAutoIncrement(t *testing.T) {
-	if Red.Value() != 0 || Green.Value() != 1 || Blue.Value() != 2 {
-		t.Fatalf("colors = %d,%d,%d", Red.Value(), Green.Value(), Blue.Value())
-	}
+	require.Equal(t, []int{0, 1, 2}, []int{Red.Value(), Green.Value(), Blue.Value()})
 	// explicit-start sequence continues from the explicit value
-	if Low.Value() != 10 || Mid.Value() != 11 || High.Value() != 12 {
-		t.Fatalf("levels = %d,%d,%d", Low.Value(), Mid.Value(), High.Value())
-	}
+	require.Equal(t, []int{10, 11, 12}, []int{Low.Value(), Mid.Value(), High.Value()})
 }
 
 func TestIntNextIsMaxPlusOne(t *testing.T) {
-	got := []int{
-		MixA.Value(), MixB.Value(), MixC.Value(),
-		MixD.Value(), MixE.Value(), MixF.Value(),
-	}
-	want := []int{0, 100, 50, 101, -5, 102}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("mixed values = %v, want %v", got, want)
-	}
+	got := []int{MixA.Value(), MixB.Value(), MixC.Value(), MixD.Value(), MixE.Value(), MixF.Value()}
+	require.Equal(t, []int{0, 100, 50, 101, -5, 102}, got)
 }
 
 func TestPosition(t *testing.T) {
 	// 0-based registration order; zero value is -1.
-	if Hearts.Position() != 0 || Diamonds.Position() != 1 || Spades.Position() != 2 {
-		t.Fatalf("positions = %d,%d,%d",
-			Hearts.Position(), Diamonds.Position(), Spades.Position())
-	}
+	require.Equal(t, 0, Hearts.Position())
+	require.Equal(t, 1, Diamonds.Position())
+	require.Equal(t, 2, Spades.Position())
+
 	var z Suit
-	if z.Position() != -1 {
-		t.Fatalf("zero position = %d, want -1", z.Position())
-	}
+	require.Equal(t, -1, z.Position())
+
 	// Values is in registration order, and Position matches the index.
 	for i, v := range enum.Values[Suit]() {
-		if v.Position() != i {
-			t.Fatalf("Values[%d].Position() = %d, want %d", i, v.Position(), i)
-		}
+		require.Equalf(t, i, v.Position(), "Values[%d].Position()", i)
 	}
+
 	// Position survives a JSON round-trip (it is copied from the canonical member).
 	b, err := json.Marshal(Diamonds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var got Suit
-	if err := json.Unmarshal(b, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Position() != 1 {
-		t.Fatalf("round-tripped Diamonds.Position() = %d, want 1", got.Position())
-	}
+	require.NoError(t, json.Unmarshal(b, &got))
+	require.Equal(t, 1, got.Position())
 }
 
 func TestOrder(t *testing.T) {
 	// Compare follows registration order (Hearts, Diamonds, Spades).
-	if Hearts.Compare(Spades) >= 0 || Spades.Compare(Hearts) <= 0 {
-		t.Fatal("Compare disagrees with registration order")
-	}
-	if Diamonds.Compare(Diamonds) != 0 {
-		t.Fatal("Compare with self should be 0")
-	}
-	// All four operator spellings via Compare.
-	if !(Hearts.Compare(Diamonds) < 0 && Hearts.Compare(Diamonds) <= 0 &&
-		Spades.Compare(Diamonds) > 0 && Spades.Compare(Diamonds) >= 0) {
-		t.Fatal("operator spellings via Compare are inconsistent")
-	}
+	require.Negative(t, Hearts.Compare(Spades))
+	require.Positive(t, Spades.Compare(Hearts))
+	require.Zero(t, Diamonds.Compare(Diamonds))
+
 	// Sortable straight from the method expression.
 	xs := []Suit{Spades, Hearts, Diamonds}
 	slices.SortFunc(xs, Suit.Compare)
-	if !slices.Equal(xs, []Suit{Hearts, Diamonds, Spades}) {
-		t.Fatalf("sorted = %v", xs)
-	}
+	require.Equal(t, []Suit{Hearts, Diamonds, Spades}, xs)
+
 	// IntEnum orders by registration position, not by int value.
-	if Blue.Compare(Red) <= 0 || Red.Compare(Blue) >= 0 {
-		t.Fatal("Color order wrong")
-	}
+	require.Positive(t, Blue.Compare(Red))
+	require.Negative(t, Red.Compare(Blue))
 }
 
 // Conc is registered entirely from concurrent goroutines to exercise the
@@ -213,14 +164,10 @@ func TestNextIntConcurrent(t *testing.T) {
 
 	seen := make(map[int]bool, n)
 	for _, v := range got {
-		if seen[v] {
-			t.Fatalf("NextInt handed out duplicate value %d", v)
-		}
+		require.Falsef(t, seen[v], "NextInt handed out duplicate value %d", v)
 		seen[v] = true
 	}
-	if added := len(enum.Values[Conc]()) - before; added != n {
-		t.Fatalf("registered %d members, want %d", added, n)
-	}
+	require.Equal(t, n, len(enum.Values[Conc]())-before)
 }
 
 // Zero-value detection: members backed by "" / 0 must still differ from the
@@ -236,126 +183,81 @@ var (
 func TestZeroValueDistinct(t *testing.T) {
 	// A member backed by "" / 0 stays distinct from the Go zero value, so the
 	// zero value works as an "unset" sentinel detectable with == Type{}.
-	if Blank == (EmptyStr{}) {
-		t.Fatal("New(\"\") must differ from EmptyStr{}")
-	}
-	if Naught == (ZeroInt{}) {
-		t.Fatal("New(0) must differ from ZeroInt{}")
-	}
-	if (EmptyStr{}).IsValid() || !Blank.IsValid() {
-		t.Fatal("Valid() wrong for EmptyStr zero vs member")
-	}
-	if Blank.String() != "" {
-		t.Fatalf("Blank.String() = %q", Blank.String())
-	}
+	require.NotEqual(t, EmptyStr{}, Blank)
+	require.NotEqual(t, ZeroInt{}, Naught)
+	require.False(t, (EmptyStr{}).IsValid())
+	require.True(t, Blank.IsValid())
+	require.Equal(t, "", Blank.String())
 
 	// A member survives a JSON round-trip equal to the registered one — not a
 	// zero value that merely shares the payload.
 	b, err := json.Marshal(Naught)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var got ZeroInt
-	if err := json.Unmarshal(b, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got != Naught {
-		t.Fatalf("round-tripped Naught = %+v, want %+v", got, Naught)
-	}
-	if got == (ZeroInt{}) {
-		t.Fatal("round-tripped member must not equal the zero value")
-	}
+	require.NoError(t, json.Unmarshal(b, &got))
+	require.Equal(t, Naught, got)
+	require.NotEqual(t, ZeroInt{}, got)
 }
 
 func TestZeroValueMarshalGuard(t *testing.T) {
 	var zs EmptyStr
-	if zs.String() != "<invalid EmptyStr>" {
-		t.Fatalf("zero StringEnum String() = %q, want <invalid EmptyStr>", zs.String())
-	}
-	if _, err := zs.MarshalText(); err == nil {
-		t.Fatal("MarshalText of zero StringEnum should error")
-	} else {
-		var zme *enum.ZeroMarshalError[EmptyStr]
-		if !errors.As(err, &zme) {
-			t.Fatalf("want *ZeroMarshalError, got %T: %v", err, err)
-		}
-	}
-	if _, err := json.Marshal(zs); err == nil {
-		t.Fatal("json.Marshal of zero StringEnum should error")
-	}
+	require.Equal(t, "<invalid EmptyStr>", zs.String())
+	_, err := zs.MarshalText()
+	var zsErr *enum.ZeroMarshalError[EmptyStr]
+	require.ErrorAs(t, err, &zsErr)
+	_, err = json.Marshal(zs)
+	require.Error(t, err)
 
 	var zi ZeroInt
-	if zi.String() != "<invalid ZeroInt>" {
-		t.Fatalf("zero IntEnum String() = %q, want <invalid ZeroInt>", zi.String())
-	}
-	if _, err := zi.MarshalJSON(); err == nil {
-		t.Fatal("MarshalJSON of zero IntEnum should error")
-	} else {
-		var zme *enum.ZeroMarshalError[ZeroInt]
-		if !errors.As(err, &zme) {
-			t.Fatalf("want *ZeroMarshalError, got %T: %v", err, err)
-		}
-	}
-	if _, err := json.Marshal(zi); err == nil {
-		t.Fatal("json.Marshal of zero IntEnum should error")
-	}
+	require.Equal(t, "<invalid ZeroInt>", zi.String())
+	_, err = zi.MarshalJSON()
+	var ziErr *enum.ZeroMarshalError[ZeroInt]
+	require.ErrorAs(t, err, &ziErr)
+	_, err = json.Marshal(zi)
+	require.Error(t, err)
 
 	// A member backed by 0 is present, so it still marshals fine.
-	if _, err := json.Marshal(Naught); err != nil {
-		t.Fatalf("marshalling New(0) should succeed: %v", err)
-	}
+	_, err = json.Marshal(Naught)
+	require.NoError(t, err)
 }
 
 type Dup struct{ enum.StringEnum[Dup] }
 
 func TestDuplicateRegistrationPanics(t *testing.T) {
-	// Recover up front so the test is also safe under -count>1, where the very
-	// first New below is itself the duplicate (Dup persists in the registry).
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic on duplicate registration")
-		}
-	}()
-	_ = enum.New[Dup]("x")
-	_ = enum.New[Dup]("x") // same value again -> panic
+	// Both New calls live inside the assertion so the test is also safe under
+	// -count>1, where the very first call is itself the duplicate (Dup persists
+	// in the registry).
+	require.Panics(t, func() {
+		_ = enum.New[Dup]("x")
+		_ = enum.New[Dup]("x") // same value again -> panic
+	})
 }
 
 func TestIntLookup(t *testing.T) {
-	if got, ok := enum.FromValue[Color](1); !ok || got != Green {
-		t.Fatalf("FromValue(1) = %v, %v", got, ok)
-	}
-	if _, ok := enum.FromValue[Color](99); ok {
-		t.Fatal("unknown int must miss")
-	}
-	if !Blue.IsValid() {
-		t.Fatal("Blue should be valid")
-	}
-	if !enum.Valid[Color](2) || enum.Valid[Color](99) {
-		t.Fatal("enum.Valid[Color](int) wrong")
-	}
+	got, ok := enum.FromValue[Color](1)
+	require.True(t, ok)
+	require.Equal(t, Green, got)
+
+	_, ok = enum.FromValue[Color](99)
+	require.False(t, ok, "unknown int must miss")
+
+	require.True(t, Blue.IsValid())
+	require.True(t, enum.Valid[Color](2))
+	require.False(t, enum.Valid[Color](99))
 }
 
 func TestIntJSONIsNumber(t *testing.T) {
 	b, err := json.Marshal(Green)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(b) != `1` {
-		t.Fatalf("int enum should marshal as number, got %s", b)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "1", string(b), "int enum should marshal as a bare number")
+
 	var c Color
-	if err := json.Unmarshal([]byte(`2`), &c); err != nil {
-		t.Fatal(err)
-	}
-	if c != Blue {
-		t.Fatalf("unmarshal = %v", c)
-	}
+	require.NoError(t, json.Unmarshal([]byte(`2`), &c))
+	require.Equal(t, Blue, c)
 
 	err = json.Unmarshal([]byte(`99`), &c)
 	var invalid *enum.InvalidValueError[Color]
-	if !errors.As(err, &invalid) {
-		t.Fatalf("want *InvalidValueError, got %v", err)
-	}
+	require.ErrorAs(t, err, &invalid)
 }
 
 func TestIntInStruct(t *testing.T) {
@@ -365,17 +267,10 @@ func TestIntInStruct(t *testing.T) {
 	}
 	in := payload{Suit: Spades, Hue: Blue}
 	b, err := json.Marshal(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(b) != `{"suit":"spades","hue":2}` {
-		t.Fatalf("struct marshal = %s", b)
-	}
+	require.NoError(t, err)
+	require.JSONEq(t, `{"suit":"spades","hue":2}`, string(b))
+
 	var out payload
-	if err := json.Unmarshal(b, &out); err != nil {
-		t.Fatal(err)
-	}
-	if out != in {
-		t.Fatalf("round trip = %+v, want %+v", out, in)
-	}
+	require.NoError(t, json.Unmarshal(b, &out))
+	require.Equal(t, in, out)
 }
