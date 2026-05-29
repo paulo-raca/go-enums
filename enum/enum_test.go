@@ -37,6 +37,19 @@ var (
 	High = enum.NextInt[Level]()  // 12
 )
 
+// Mixed interleaves auto and explicit values, including an explicit value below
+// the current max, to pin down that NextInt yields max(allValues)+1.
+type Mixed struct{ enum.IntEnum[Mixed] }
+
+var (
+	MixA = enum.NextInt[Mixed]()   // 0
+	MixB = enum.NewInt[Mixed](100) // 100
+	MixC = enum.NewInt[Mixed](50)  // 50  (below current max)
+	MixD = enum.NextInt[Mixed]()   // 101 = max(0,100,50)+1
+	MixE = enum.NewInt[Mixed](-5)  // -5  (negative, below max)
+	MixF = enum.NextInt[Mixed]()   // 102
+)
+
 func TestStringBasics(t *testing.T) {
 	if Hearts.String() != "hearts" {
 		t.Fatalf("String = %q", Hearts.String())
@@ -105,6 +118,17 @@ func TestIntAutoIncrement(t *testing.T) {
 	// explicit-start sequence continues from the explicit value
 	if Low.Value() != 10 || Mid.Value() != 11 || High.Value() != 12 {
 		t.Fatalf("levels = %d,%d,%d", Low.Value(), Mid.Value(), High.Value())
+	}
+}
+
+func TestIntNextIsMaxPlusOne(t *testing.T) {
+	got := []int{
+		MixA.Value(), MixB.Value(), MixC.Value(),
+		MixD.Value(), MixE.Value(), MixF.Value(),
+	}
+	want := []int{0, 100, 50, 101, -5, 102}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mixed values = %v, want %v", got, want)
 	}
 }
 
