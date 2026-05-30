@@ -69,7 +69,7 @@ var (
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
   (marshalling/persisting the zero value) errors, both matchable with `errors.As`
 - `enum.Values[T]()` (in registration order)
-- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.FromValue[T]` →
+- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.Lookup[T]` →
   `(T, bool)`, `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
 - `member.IsValid()` — is this a real member, or the zero value? (lock-free)
 - `member.Position()` — 0-based registration order (`-1` for the zero value)
@@ -104,7 +104,7 @@ once.
 ## Validating input
 
 ```go
-s, ok := enum.FromValue[Suit](untrusted) // (T, bool)
+s, ok := enum.Lookup[Suit](untrusted) // (T, bool)
 if !ok {
 	// reject
 }
