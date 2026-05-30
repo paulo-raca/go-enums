@@ -156,7 +156,7 @@ go vet -vettool=$(which enumcheck) ./...
 version: v2.1.0 # match your installed golangci-lint version
 plugins:
   - module: github.com/paulo-raca/go-enums/enumcheck
-    import: github.com/paulo-raca/go-enums/enumcheck/plugin
+    import: github.com/paulo-raca/go-enums/enumcheck
     version: latest
 ```
 

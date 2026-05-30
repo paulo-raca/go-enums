@@ -21,15 +21,15 @@ go vet -vettool=$(which enumcheck) ./...
 
 ### With golangci-lint
 
-This module ships a [module-plugin](https://golangci-lint.run/plugins/module-plugins/)
-entry point at `github.com/paulo-raca/go-enums/enumcheck/plugin`. Add a
+This module registers a [module-plugin](https://golangci-lint.run/plugins/module-plugins/)
+entry point in the `github.com/paulo-raca/go-enums/enumcheck` package. Add a
 `.custom-gcl.yml`:
 
 ```yaml
 version: v2.1.0 # match your installed golangci-lint version
 plugins:
   - module: github.com/paulo-raca/go-enums/enumcheck
-    import: github.com/paulo-raca/go-enums/enumcheck/plugin
+    import: github.com/paulo-raca/go-enums/enumcheck
     version: latest
 ```
 
