@@ -25,6 +25,8 @@
 //   - MarshalText / UnmarshalText           (encoding.Text{Marshaler,Unmarshaler})
 //   - JSON: StringEnum as a string (via the text interfaces), IntEnum as a
 //     number (via Marshal/UnmarshalJSON)
+//   - database/sql: driver.Valuer + sql.Scanner (StringEnum as text, IntEnum as
+//     int64); nullable columns use a *T pointer
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
 //   - IsValid() and Position() methods on each member (Position is 0-based
 //     registration order; -1 marks the zero value)

@@ -1,6 +1,8 @@
 package enum_test
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"slices"
 	"sync"
@@ -8,6 +10,15 @@ import (
 
 	"github.com/paulo-raca/go-enums/enum"
 	"github.com/stretchr/testify/require"
+)
+
+// Compile-time checks that the database/sql interfaces are satisfied (Valuer on
+// the value, Scanner on the pointer), including via embedding promotion.
+var (
+	_ driver.Valuer = Suit{}
+	_ sql.Scanner   = (*Suit)(nil)
+	_ driver.Valuer = Color{}
+	_ sql.Scanner   = (*Color)(nil)
 )
 
 // --- string enum under test ---------------------------------------------
@@ -96,13 +107,13 @@ func TestStringAsJSONMapKey(t *testing.T) {
 }
 
 func TestIntAutoIncrement(t *testing.T) {
-	require.Equal(t, []int{0, 1, 2}, []int{Red.Value(), Green.Value(), Blue.Value()})
+	require.Equal(t, []int{0, 1, 2}, []int{Red.Int(), Green.Int(), Blue.Int()})
 	// explicit-start sequence continues from the explicit value
-	require.Equal(t, []int{10, 11, 12}, []int{Low.Value(), Mid.Value(), High.Value()})
+	require.Equal(t, []int{10, 11, 12}, []int{Low.Int(), Mid.Int(), High.Int()})
 }
 
 func TestIntNextIsMaxPlusOne(t *testing.T) {
-	got := []int{MixA.Value(), MixB.Value(), MixC.Value(), MixD.Value(), MixE.Value(), MixF.Value()}
+	got := []int{MixA.Int(), MixB.Int(), MixC.Int(), MixD.Int(), MixE.Int(), MixF.Int()}
 	require.Equal(t, []int{0, 100, 50, 101, -5, 102}, got)
 }
 
@@ -157,7 +168,7 @@ func TestNextIntConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			got[i] = enum.NextInt[Conc]().Value()
+			got[i] = enum.NextInt[Conc]().Int()
 		}(i)
 	}
 	wg.Wait()
@@ -337,4 +348,85 @@ func TestUnsetFieldSerialization(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"hue":2}`), &ptrSet))
 	require.NotNil(t, ptrSet.Hue)
 	require.Equal(t, Blue, *ptrSet.Hue)
+}
+
+func TestSQL(t *testing.T) {
+	// Valuer: StringEnum -> string, IntEnum -> int64.
+	v, err := Hearts.Value()
+	require.NoError(t, err)
+	require.Equal(t, "hearts", v)
+
+	v, err = Blue.Value()
+	require.NoError(t, err)
+	require.Equal(t, int64(2), v)
+
+	// Scanner: text column (string or []byte) -> member.
+	var s Suit
+	require.NoError(t, s.Scan("spades"))
+	require.Equal(t, Spades, s)
+	require.NoError(t, s.Scan([]byte("hearts")))
+	require.Equal(t, Hearts, s)
+
+	// Scanner: integer column -> member.
+	var c Color
+	require.NoError(t, c.Scan(int64(1)))
+	require.Equal(t, Green, c)
+
+	// NULL leaves the zero value (use a *T pointer for a nullable column).
+	var ns Suit
+	require.NoError(t, ns.Scan(nil))
+	require.Equal(t, Suit{}, ns)
+	var nc Color
+	require.NoError(t, nc.Scan(nil))
+	require.Equal(t, Color{}, nc)
+
+	// The zero value is not persistable.
+	_, err = (Suit{}).Value()
+	var zse *enum.ZeroMarshalError[Suit]
+	require.ErrorAs(t, err, &zse)
+	_, err = (Color{}).Value()
+	var zce *enum.ZeroMarshalError[Color]
+	require.ErrorAs(t, err, &zce)
+
+	// Unknown stored value -> *InvalidValueError.
+	var bs Suit
+	var ive *enum.InvalidValueError[Suit]
+	require.ErrorAs(t, bs.Scan("bogus"), &ive)
+	var bc Color
+	var ivc *enum.InvalidValueError[Color]
+	require.ErrorAs(t, bc.Scan(int64(99)), &ivc)
+
+	// A column of the wrong kind is a plain error, not InvalidValueError.
+	var wrong Suit
+	err = wrong.Scan(int64(1))
+	require.Error(t, err)
+	require.NotErrorAs(t, err, &ive)
+}
+
+func TestUnmarshalJSONNullIsNoOp(t *testing.T) {
+	// IntEnum: null must NOT decode to the value-0 member; it leaves the field.
+	type intHolder struct {
+		Hue Color `json:"hue"`
+	}
+	h := intHolder{Hue: Blue}
+	require.NoError(t, json.Unmarshal([]byte(`{"hue":null}`), &h))
+	require.Equal(t, Blue, h.Hue, "null should be a no-op, not decode to value 0")
+
+	var fresh intHolder
+	require.NoError(t, json.Unmarshal([]byte(`{"hue":null}`), &fresh))
+	require.Equal(t, Color{}, fresh.Hue)
+
+	// StringEnum: null is likewise a no-op (the text path never fires on null).
+	type strHolder struct {
+		Suit Suit `json:"suit"`
+	}
+	sh := strHolder{Suit: Spades}
+	require.NoError(t, json.Unmarshal([]byte(`{"suit":null}`), &sh))
+	require.Equal(t, Spades, sh.Suit)
+
+	// Defensive: a JSON encoder that hands UnmarshalJSON padded bytes (stdlib
+	// trims, but the Unmarshaler contract doesn't require it) is still a no-op.
+	c := Blue
+	require.NoError(t, c.UnmarshalJSON([]byte("  null  ")))
+	require.Equal(t, Blue, c)
 }

@@ -1,8 +1,11 @@
 package enum
 
 import (
+	"bytes"
 	"cmp"
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"strconv"
 )
 
@@ -32,8 +35,8 @@ func (e IntEnum[T]) String() string {
 	return strconv.Itoa(e.val)
 }
 
-// Value returns the backing integer.
-func (e IntEnum[T]) Value() int { return e.val }
+// Int returns the backing integer.
+func (e IntEnum[T]) Int() int { return e.val }
 
 // IsValid reports whether e is a real member rather than the Go zero value. It
 // is the lock-free pos field, so it is cheap; it does not consult the registry.
@@ -68,6 +71,16 @@ func (e IntEnum[T]) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.Itoa(e.val)), nil
 }
 
+// Value implements driver.Valuer: an IntEnum is stored as an int64. The zero
+// value is refused with *ZeroMarshalError[T] — an invalid value must not be
+// persisted. For a nullable column use a *T pointer.
+func (e IntEnum[T]) Value() (driver.Value, error) {
+	if e.pos == 0 {
+		return nil, &ZeroMarshalError[T]{}
+	}
+	return int64(e.val), nil
+}
+
 // set is the unexported value write path; see StringEnum.set. It shares the name
 // with StringEnum's set(string) so a single New serves both.
 func (e *IntEnum[T]) set(n int) { e.val = n }
@@ -98,8 +111,16 @@ func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler. It parses a JSON number, checks
 // membership in T, and stores the value and position, or returns
-// *InvalidValueError[T].
+// *InvalidValueError[T]. JSON null is a no-op (the member is left unchanged), by
+// the convention for json.Unmarshaler — matching StringEnum, whose text path
+// also ignores null.
 func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
+	// encoding/json hands us whitespace-trimmed bytes, but trim defensively so
+	// alternative JSON encoders that don't are still handled. (Go optimizes
+	// string(b) == "literal" to avoid allocating.)
+	if string(bytes.TrimSpace(data)) == "null" {
+		return nil
+	}
 	var n int
 	if err := json.Unmarshal(data, &n); err != nil {
 		return &InvalidValueError[T]{Value: string(data)}
@@ -110,6 +131,31 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 	}
 	e.set(n)
 	e.setPos(v.Position() + 1) // Position is 0-based; setPos wants the 1-based slot
+	return nil
+}
+
+// Scan implements sql.Scanner from an integer column. A NULL (nil src) leaves
+// the zero value; an unknown value yields *InvalidValueError[T].
+func (e *IntEnum[T]) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+	var n int
+	switch v := src.(type) {
+	case int64:
+		n = int(v)
+	case int:
+		n = v
+	default:
+		var zero T
+		return fmt.Errorf("enum: cannot scan %T into %T", src, zero)
+	}
+	m, ok := lookup[T](n)
+	if !ok {
+		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
+	}
+	e.set(n)
+	e.setPos(m.Position() + 1)
 	return nil
 }
 

@@ -1,6 +1,10 @@
 package enum
 
-import "cmp"
+import (
+	"cmp"
+	"database/sql/driver"
+	"fmt"
+)
 
 // StringEnum is embedded (parameterised over the embedding type) to turn a
 // struct into a string-backed enum member:
@@ -28,9 +32,6 @@ func (e StringEnum[T]) String() string {
 	}
 	return e.val
 }
-
-// Value returns the backing string (identical to String for a valid member).
-func (e StringEnum[T]) Value() string { return e.val }
 
 // IsValid reports whether e is a real member rather than the Go zero value. It
 // is the lock-free pos field, so it is cheap; it does not consult the registry.
@@ -60,6 +61,16 @@ func (e StringEnum[T]) MarshalText() ([]byte, error) {
 	return []byte(e.val), nil
 }
 
+// Value implements driver.Valuer: a StringEnum is stored as its string. The zero
+// value is refused with *ZeroMarshalError[T] — an invalid value must not be
+// persisted. For a nullable column use a *T pointer.
+func (e StringEnum[T]) Value() (driver.Value, error) {
+	if e.pos == 0 {
+		return nil, &ZeroMarshalError[T]{}
+	}
+	return e.val, nil
+}
+
 // set is the unexported value write path. Promoted onto *T it keeps this
 // package's identity, which is what closes the set while still letting New
 // construct values for T defined in another package. IntEnum carries a set(int)
@@ -86,5 +97,30 @@ func (e *StringEnum[T]) UnmarshalText(text []byte) error {
 	}
 	e.set(v.String())
 	e.setPos(v.Position() + 1) // Position is 0-based; setPos wants the 1-based slot
+	return nil
+}
+
+// Scan implements sql.Scanner from a text column (string or []byte). A NULL
+// (nil src) leaves the zero value; an unknown value yields *InvalidValueError[T].
+func (e *StringEnum[T]) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+	var s string
+	switch v := src.(type) {
+	case string:
+		s = v
+	case []byte:
+		s = string(v)
+	default:
+		var zero T
+		return fmt.Errorf("enum: cannot scan %T into %T", src, zero)
+	}
+	m, ok := lookup[T](s)
+	if !ok {
+		return &InvalidValueError[T]{Value: s}
+	}
+	e.set(m.String())
+	e.setPos(m.Position() + 1)
 	return nil
 }
