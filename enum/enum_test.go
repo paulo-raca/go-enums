@@ -311,4 +311,9 @@ func TestUnsetFieldSerialization(t *testing.T) {
 	b, err = json.Marshal(withPtr{Hue: &blue})
 	require.NoError(t, err)
 	require.JSONEq(t, `{"hue":2}`, string(b))
+
+	// A non-nil pointer to the zero value is not "unset" — it still errors,
+	// since it points at an invalid member. Only nil means unset.
+	_, err = json.Marshal(withPtr{Hue: &Color{}})
+	require.ErrorAs(t, err, &zme)
 }
