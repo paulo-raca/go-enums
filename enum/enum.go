@@ -32,7 +32,8 @@
 //     registration order; -1 marks the zero value)
 //   - Compare() ordering members by Position — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
-//   - Values[T](), Valid[T](value), FromValue[T](value)
+//   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
+//     FromValue[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -256,6 +257,40 @@ func FromValue[T Enum, V any, PT interface {
 	set(V)
 }](v V) (T, bool) {
 	return lookup[T](v)
+}
+
+// Parse resolves the backing value v to a registered member of T. Same dispatch
+// as FromValue, but returns *InvalidValueError[T] instead of (T, bool) — so the
+// common callsite ("look up, return err with %w") composes with errors.As and
+// the existing typed-error machinery.
+//
+//	v, err := enum.Parse[Suit]("hearts")
+//	v, err := enum.Parse[Priority](10)
+func Parse[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) (T, error) {
+	m, ok := lookup[T](v)
+	if !ok {
+		return m, &InvalidValueError[T]{Value: fmt.Sprint(v)}
+	}
+	return m, nil
+}
+
+// MustParse is the panicking sibling of Parse — for var-block / struct-literal
+// initialisers where (T, error) is awkward. Panics with *InvalidValueError[T].
+//
+//	var EdgeLabelHasMember = enum.MustParse[EdgeLabel]("HAS_MEMBER") // unusual
+//	conn.SourceType = enum.MustParse[SourceType](dbRow.SourceType)   // typical
+func MustParse[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) T {
+	m, err := Parse[T, V, PT](v)
+	if err != nil {
+		panic(err)
+	}
+	return m
 }
 
 // lookup is the unconstrained resolver shared by FromValue and the Unmarshal

@@ -68,8 +68,9 @@ var (
   as `int64`); use a `*T` pointer for a nullable column
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
   (marshalling/persisting the zero value) errors, both matchable with `errors.As`
-- `enum.Values[T]()` (in registration order), `enum.FromValue[T](value)`
-- `enum.Valid[T](value)` — does a backing `int`/`string` name a registered member?
+- `enum.Values[T]()` (in registration order)
+- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.FromValue[T]` →
+  `(T, bool)`, `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
 - `member.IsValid()` — is this a real member, or the zero value? (lock-free)
 - `member.Position()` — 0-based registration order (`-1` for the zero value)
 - `a.Compare(b)` — order members by registration position. Go has no operator
@@ -103,13 +104,20 @@ once.
 ## Validating input
 
 ```go
-s, ok := enum.FromValue[Suit](untrusted)
+s, ok := enum.FromValue[Suit](untrusted) // (T, bool)
 if !ok {
 	// reject
 }
 
+s, err := enum.Parse[Suit](untrusted)    // (T, error): *InvalidValueError, composes with %w
+if err != nil {
+	return fmt.Errorf("bad suit: %w", err)
+}
+
+s = enum.MustParse[Suit](trustedConst)   // panics on miss — for values you know are members
+
 var got Suit
-err := json.Unmarshal(data, &got)
+err = json.Unmarshal(data, &got)
 var invalid *enum.InvalidValueError[Suit]
 if errors.As(err, &invalid) {
 	// invalid.Value holds the offending input

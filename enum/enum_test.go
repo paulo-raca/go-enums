@@ -430,3 +430,42 @@ func TestUnmarshalJSONNullIsNoOp(t *testing.T) {
 	require.NoError(t, c.UnmarshalJSON([]byte("  null  ")))
 	require.Equal(t, Blue, c)
 }
+
+func TestParse(t *testing.T) {
+	got, err := enum.Parse[Suit]("hearts")
+	require.NoError(t, err)
+	require.Equal(t, Hearts, got)
+
+	got, err = enum.Parse[Suit]("nope")
+	require.Equal(t, Suit{}, got)
+	var ive *enum.InvalidValueError[Suit]
+	require.ErrorAs(t, err, &ive)
+	require.Equal(t, "nope", ive.Value)
+
+	c, err := enum.Parse[Color](1)
+	require.NoError(t, err)
+	require.Equal(t, Green, c)
+
+	_, err = enum.Parse[Color](99)
+	var ivc *enum.InvalidValueError[Color]
+	require.ErrorAs(t, err, &ivc)
+	require.Equal(t, "99", ivc.Value)
+}
+
+func TestMustParse(t *testing.T) {
+	require.Equal(t, Spades, enum.MustParse[Suit]("spades"))
+	require.Equal(t, Green, enum.MustParse[Color](1))
+
+	require.Panics(t, func() { _ = enum.MustParse[Suit]("nope") })
+
+	// the panic value is the typed *InvalidValueError.
+	var ive *enum.InvalidValueError[Color]
+	func() {
+		defer func() {
+			err, _ := recover().(error)
+			require.ErrorAs(t, err, &ive)
+		}()
+		_ = enum.MustParse[Color](99)
+	}()
+	require.Equal(t, "99", ive.Value)
+}
