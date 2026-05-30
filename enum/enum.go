@@ -230,23 +230,32 @@ func tagsOf(opts []Option) []any {
 }
 
 // AnyOf returns the members of T tagged with at least one of the given tags
-// (set union), deduplicated and in registration order. A query is over a single
-// tag type G; model related tags as one type to cross-query them. With no tags
-// it returns nil.
+// (set union), deduplicated and in registration order. Tags may be of different
+// types in one query (they were comparable by construction; see Tag). With no
+// tags it returns nil.
 //
-//	enum.AnyOf[Suit](GroupA, Tier1) // members in GroupA OR Tier1
-func AnyOf[T Enum, G comparable](tags ...G) []T { return queryTags[T](toAny(tags), false) }
+//	enum.AnyOf[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
+//	enum.AnyOf[Card](GroupA, Common) // mixed tag types: in GroupA OR Common
+func AnyOf[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
 
 // AllOf returns the members of T tagged with every one of the given tags (set
-// intersection), in registration order. With no tags it returns nil.
+// intersection), in registration order. Tags may be of different types. With no
+// tags it returns nil.
 //
 //	enum.AllOf[Suit](GroupA, Tier1) // members in GroupA AND Tier1
-func AllOf[T Enum, G comparable](tags ...G) []T { return queryTags[T](toAny(tags), true) }
+func AllOf[T Enum](tags ...any) []T { return queryTags[T](tags, true) }
 
 func queryTags[T Enum](tags []any, needAll bool) []T {
 	if len(tags) == 0 {
 		return nil
 	}
+	// De-duplicate query tags so AllOf's threshold counts distinct tags.
+	distinct := make([]any, 0, len(tags))
+	for _, t := range tags {
+		distinct = appendUnique(distinct, t)
+	}
+	tags = distinct
+
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
@@ -291,14 +300,6 @@ func memberTags[T Enum](pos int) []any {
 		return nil
 	}
 	return append([]any(nil), b.tagsBySlot[pos-1]...)
-}
-
-func toAny[G comparable](tags []G) []any {
-	out := make([]any, 0, len(tags))
-	for _, t := range tags {
-		out = appendUnique(out, any(t))
-	}
-	return out
 }
 
 func containsAny(xs []any, v any) bool {

@@ -513,9 +513,12 @@ func TestTags(t *testing.T) {
 	// A second, unrelated tag type, queried separately.
 	require.Equal(t, []Card{CA1, CB2}, enum.AnyOf[Card](Common))
 
-	// Empty query -> nil (G must be named explicitly since there's nothing to
-	// infer it from — an edge no real call hits).
-	require.Nil(t, enum.AnyOf[Card, CardTag]())
+	// Tag types may be mixed in one query.
+	require.Equal(t, []Card{CA1, CA2, CB2}, enum.AnyOf[Card](GroupA, Common)) // GroupA OR Common
+	require.Equal(t, []Card{CA1}, enum.AllOf[Card](GroupA, Common))           // GroupA AND Common
+
+	// Empty query -> nil.
+	require.Nil(t, enum.AnyOf[Card]())
 
 	// HasTag method (any arg).
 	require.True(t, CA1.HasTag(GroupA))

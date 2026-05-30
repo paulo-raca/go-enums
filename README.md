@@ -112,9 +112,11 @@ A1.HasTag(GroupA)                // true   (arg is any; a wrong-typed tag is jus
 A1.Tags()                        // []any{GroupA, Tier1}
 ```
 
-A member may carry tags of several different types (e.g. also a `Rarity`); each
-`AnyOf`/`AllOf` query is over **one** tag type at a time. `AnyOf` is union (the
-no-boilerplate default); `AllOf` is intersection.
+`AnyOf` is union (the no-boilerplate default); `AllOf` is intersection. A member
+may carry tags of several different types (e.g. also a `Rarity`), and a single
+query may **mix tag types** — `enum.AnyOf[Card](GroupA, Common)`. The query
+functions take `...any` (Go won't let `comparable` be a parameter type), but tags
+are comparable-by-construction via `Tag`, so the matching can't panic.
 
 ## Closed by construction
 
