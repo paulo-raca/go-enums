@@ -469,3 +469,69 @@ func TestMustParse(t *testing.T) {
 	}()
 	require.Equal(t, "99", ive.Value)
 }
+
+// --- tags ---------------------------------------------------------------
+
+// CardTag is one flat tag namespace (groups + tiers), so they cross-query.
+type CardTag struct{ enum.StringEnum[CardTag] }
+
+var (
+	GroupA = enum.New[CardTag]("group-a")
+	GroupB = enum.New[CardTag]("group-b")
+	Tier1  = enum.New[CardTag]("tier-1")
+	Tier2  = enum.New[CardTag]("tier-2")
+)
+
+// Rarity is a second, unrelated tag type to exercise heterogeneous tags.
+type Rarity int
+
+const (
+	Common Rarity = 1
+	Rare   Rarity = 2
+)
+
+type Card struct{ enum.StringEnum[Card] }
+
+var (
+	CA1 = enum.New[Card]("a.1", enum.Tag(GroupA), enum.Tag(Tier1), enum.Tag(Common))
+	CA2 = enum.New[Card]("a.2", enum.Tag(GroupA), enum.Tag(Tier2), enum.Tag(Rare))
+	CB1 = enum.New[Card]("b.1", enum.Tag(GroupB), enum.Tag(Tier1), enum.Tag(Rare))
+	CB2 = enum.New[Card]("b.2", enum.Tag(GroupB), enum.Tag(Tier2), enum.Tag(Common))
+)
+
+func TestTags(t *testing.T) {
+	// AnyOf (union), deduped, in registration order.
+	require.Equal(t, []Card{CA1, CA2}, enum.AnyOf[Card](GroupA))
+	require.Equal(t, []Card{CA1, CB1}, enum.AnyOf[Card](Tier1))
+	require.Equal(t, []Card{CA1, CA2, CB1}, enum.AnyOf[Card](GroupA, Tier1)) // the motivating example
+	require.Equal(t, []Card{CA1, CA2, CB1, CB2}, enum.AnyOf[Card](GroupA, GroupB))
+
+	// AllOf (intersection).
+	require.Equal(t, []Card{CA1}, enum.AllOf[Card](GroupA, Tier1))
+	require.Empty(t, enum.AllOf[Card](GroupA, GroupB)) // nothing is in both groups
+
+	// A second, unrelated tag type, queried separately.
+	require.Equal(t, []Card{CA1, CB2}, enum.AnyOf[Card](Common))
+
+	// Empty query -> nil (G must be named explicitly since there's nothing to
+	// infer it from — an edge no real call hits).
+	require.Nil(t, enum.AnyOf[Card, CardTag]())
+
+	// HasTag method (any arg).
+	require.True(t, CA1.HasTag(GroupA))
+	require.True(t, CA1.HasTag(Tier1))
+	require.True(t, CA1.HasTag(Common))
+	require.False(t, CA1.HasTag(GroupB))
+	require.False(t, CA1.HasTag(Rare))
+	require.False(t, CA1.HasTag("group-a")) // wrong type (string != CardTag) -> false
+
+	// Tags() reverse lookup, and the zero value has none.
+	require.ElementsMatch(t, []any{GroupA, Tier1, Common}, CA1.Tags())
+	var z Card
+	require.False(t, z.HasTag(GroupA))
+	require.Empty(t, z.Tags())
+
+	// Untagged enums (Suit) have no tags and miss every query.
+	require.Empty(t, enum.AnyOf[Suit](GroupA))
+	require.False(t, Hearts.HasTag(GroupA))
+}

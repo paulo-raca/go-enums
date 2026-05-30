@@ -172,17 +172,27 @@ func (e *IntEnum[T]) Scan(src any) error {
 // Mix freely with explicit New values to start or jump the sequence. NextInt is
 // intended for init-time var blocks, just like iota, but is also safe to call
 // concurrently: it computes the next value and registers it under a single
-// write lock, so two callers can never be handed the same value.
+// write lock, so two callers can never be handed the same value. Optional Tag
+// options attach tags to the member; see Tag.
 func NextInt[T Enum, PT interface {
 	*T
 	set(int)
 	setPos(int)
-}]() T {
+}](opts ...Option) T {
+	tags := tagsOf(opts)
 	mu.Lock()
 	defer mu.Unlock()
 	n := nextIntLocked[T]()
 	var t T
 	PT(&t).set(n)
-	registerLocked[T, PT](&t, true, n)
+	registerLocked[T, PT](&t, true, n, tags)
 	return t
 }
+
+// HasTag reports whether e was tagged (via enum.Tag) with tag. tag is any value
+// — a tag of the wrong type simply returns false. The zero value has no tags.
+func (e IntEnum[T]) HasTag(tag any) bool { return hasTag[T](e.pos, tag) }
+
+// Tags returns e's tags in declaration order. The slice is heterogeneous (a
+// member may be tagged with several types), so it is []any.
+func (e IntEnum[T]) Tags() []any { return memberTags[T](e.pos) }

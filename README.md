@@ -80,6 +80,42 @@ Enums are **sortable by insertion order**: `Values[T]()` already returns members
 in the order they were declared, and `Compare` lets you sort a mixed slice back
 into that order with `slices.SortFunc(xs, MyEnum.Compare)`.
 
+## Tags & grouping
+
+Attach typed tags to members at declaration, then query by them. A tag is any
+named comparable type — use a small `type X string` or a go-enums enum so tags
+are typo-proof:
+
+```go
+// One flat tag namespace (groups and tiers), so they cross-query.
+type CardTag struct{ enum.StringEnum[CardTag] }
+
+var (
+	GroupA = enum.New[CardTag]("group-a")
+	GroupB = enum.New[CardTag]("group-b")
+	Tier1  = enum.New[CardTag]("tier-1")
+)
+
+type Card struct{ enum.StringEnum[Card] }
+
+var (
+	A1 = enum.New[Card]("a.1", enum.Tag(GroupA), enum.Tag(Tier1))
+	A2 = enum.New[Card]("a.2", enum.Tag(GroupA))
+	B1 = enum.New[Card]("b.1", enum.Tag(GroupB), enum.Tag(Tier1))
+)
+
+enum.AnyOf[Card](GroupA)         // [A1, A2]      — union (deduped, registration order)
+enum.AnyOf[Card](GroupA, Tier1)  // [A1, A2, B1]
+enum.AllOf[Card](GroupA, Tier1)  // [A1]          — intersection
+
+A1.HasTag(GroupA)                // true   (arg is any; a wrong-typed tag is just false)
+A1.Tags()                        // []any{GroupA, Tier1}
+```
+
+A member may carry tags of several different types (e.g. also a `Rarity`); each
+`AnyOf`/`AllOf` query is over **one** tag type at a time. `AnyOf` is union (the
+no-boilerplate default); `AllOf` is intersection.
+
 ## Closed by construction
 
 The backing field and its setter are unexported, so `enum.New` (and the
