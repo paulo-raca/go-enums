@@ -32,7 +32,8 @@
 //     registration order; -1 marks the zero value)
 //   - Compare() ordering members by Position — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
-//   - Values[T](), Valid[T](value), FromValue[T](value)
+//   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
+//     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -108,8 +109,8 @@ func (e *ZeroMarshalError[T]) Error() string {
 // names/ints depending on its base, never both.
 type bucket struct {
 	order  []any          // members in registration order, for Values
-	names  map[string]any // value -> member, for FromValue/Valid + dedup (StringEnum only)
-	ints   map[int]any    // value -> member, for FromValue/Valid + dedup (IntEnum only)
+	names  map[string]any // value -> member, for Lookup/Valid + dedup (StringEnum only)
+	ints   map[int]any    // value -> member, for Lookup/Valid + dedup (IntEnum only)
 	maxInt int            // highest value seen so far (IntEnum only)
 }
 
@@ -225,7 +226,7 @@ func Values[T Enum]() []T {
 }
 
 // Valid reports whether the backing value v names a registered member of T. As
-// with New and FromValue, v is a string for a StringEnum or an int for an
+// with New and Lookup, v is a string for a StringEnum or an int for an
 // IntEnum, and the set(V) constraint makes a wrong type a compile error:
 //
 //	enum.Valid[Suit]("hearts") // true
@@ -237,32 +238,66 @@ func Valid[T Enum, V any, PT interface {
 	*T
 	set(V)
 }](v V) bool {
-	_, ok := lookup[T](v)
+	_, ok := resolve[T](v)
 	return ok
 }
 
-// FromValue resolves the backing value v to a registered member of T: a string
+// Lookup resolves the backing value v to a registered member of T: a string
 // for a StringEnum, or an int for an IntEnum:
 //
-//	s, ok := enum.FromValue[Suit]("hearts")
-//	c, ok := enum.FromValue[Color](2)
+//	s, ok := enum.Lookup[Suit]("hearts")
+//	c, ok := enum.Lookup[Color](2)
 //
 // V is inferred from the argument. The set(V) constraint ties V to T's backing
 // type exactly as New does, so passing the wrong type for a given enum — e.g.
-// enum.FromValue[Suit](5) or enum.FromValue[Color]("2") — is a compile error,
+// enum.Lookup[Suit](5) or enum.Lookup[Color]("2") — is a compile error,
 // not a runtime miss.
-func FromValue[T Enum, V any, PT interface {
+func Lookup[T Enum, V any, PT interface {
 	*T
 	set(V)
 }](v V) (T, bool) {
-	return lookup[T](v)
+	return resolve[T](v)
 }
 
-// lookup is the unconstrained resolver shared by FromValue and the Unmarshal
-// methods. It carries no set(V) constraint, so the Unmarshal methods — whose T
-// is known only to be an Enum and cannot prove *T has the setter — can still
-// call it. FromValue layers the compile-time type check on top.
-func lookup[T Enum, V any](v V) (T, bool) {
+// Parse resolves the backing value v to a registered member of T. Same dispatch
+// as Lookup, but returns *InvalidValueError[T] instead of (T, bool) — so the
+// common callsite ("look up, return err with %w") composes with errors.As and
+// the existing typed-error machinery.
+//
+//	v, err := enum.Parse[Suit]("hearts")
+//	v, err := enum.Parse[Priority](10)
+func Parse[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) (T, error) {
+	m, ok := resolve[T](v)
+	if !ok {
+		return m, &InvalidValueError[T]{Value: fmt.Sprint(v)}
+	}
+	return m, nil
+}
+
+// MustParse is the panicking sibling of Parse — for var-block / struct-literal
+// initialisers where (T, error) is awkward. Panics with *InvalidValueError[T].
+//
+//	var EdgeLabelHasMember = enum.MustParse[EdgeLabel]("HAS_MEMBER") // unusual
+//	conn.SourceType = enum.MustParse[SourceType](dbRow.SourceType)   // typical
+func MustParse[T Enum, V any, PT interface {
+	*T
+	set(V)
+}](v V) T {
+	m, err := Parse[T, V, PT](v)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// resolve is the unconstrained resolver shared by Lookup, Parse, Valid, and the
+// Unmarshal methods. It carries no set(V) constraint, so the Unmarshal methods —
+// whose T is known only to be an Enum and cannot prove *T has the setter — can
+// still call it. Lookup/Parse/Valid layer the compile-time type check on top.
+func resolve[T Enum, V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]

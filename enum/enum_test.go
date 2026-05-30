@@ -69,11 +69,11 @@ func TestStringBasics(t *testing.T) {
 	var zero Suit
 	require.False(t, zero.IsValid(), "zero value must not be valid")
 
-	got, ok := enum.FromValue[Suit]("spades")
+	got, ok := enum.Lookup[Suit]("spades")
 	require.True(t, ok)
 	require.Equal(t, Spades, got)
 
-	_, ok = enum.FromValue[Suit]("nope")
+	_, ok = enum.Lookup[Suit]("nope")
 	require.False(t, ok, "unknown string must miss")
 
 	// package-level Valid takes the backing value, not the member.
@@ -245,11 +245,11 @@ func TestDuplicateRegistrationPanics(t *testing.T) {
 }
 
 func TestIntLookup(t *testing.T) {
-	got, ok := enum.FromValue[Color](1)
+	got, ok := enum.Lookup[Color](1)
 	require.True(t, ok)
 	require.Equal(t, Green, got)
 
-	_, ok = enum.FromValue[Color](99)
+	_, ok = enum.Lookup[Color](99)
 	require.False(t, ok, "unknown int must miss")
 
 	require.True(t, Blue.IsValid())
@@ -429,4 +429,43 @@ func TestUnmarshalJSONNullIsNoOp(t *testing.T) {
 	c := Blue
 	require.NoError(t, c.UnmarshalJSON([]byte("  null  ")))
 	require.Equal(t, Blue, c)
+}
+
+func TestParse(t *testing.T) {
+	got, err := enum.Parse[Suit]("hearts")
+	require.NoError(t, err)
+	require.Equal(t, Hearts, got)
+
+	got, err = enum.Parse[Suit]("nope")
+	require.Equal(t, Suit{}, got)
+	var ive *enum.InvalidValueError[Suit]
+	require.ErrorAs(t, err, &ive)
+	require.Equal(t, "nope", ive.Value)
+
+	c, err := enum.Parse[Color](1)
+	require.NoError(t, err)
+	require.Equal(t, Green, c)
+
+	_, err = enum.Parse[Color](99)
+	var ivc *enum.InvalidValueError[Color]
+	require.ErrorAs(t, err, &ivc)
+	require.Equal(t, "99", ivc.Value)
+}
+
+func TestMustParse(t *testing.T) {
+	require.Equal(t, Spades, enum.MustParse[Suit]("spades"))
+	require.Equal(t, Green, enum.MustParse[Color](1))
+
+	require.Panics(t, func() { _ = enum.MustParse[Suit]("nope") })
+
+	// the panic value is the typed *InvalidValueError.
+	var ive *enum.InvalidValueError[Color]
+	func() {
+		defer func() {
+			err, _ := recover().(error)
+			require.ErrorAs(t, err, &ive)
+		}()
+		_ = enum.MustParse[Color](99)
+	}()
+	require.Equal(t, "99", ive.Value)
 }

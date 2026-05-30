@@ -100,7 +100,7 @@ func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 	if err != nil {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
-	v, ok := lookup[T](n)
+	v, ok := resolve[T](n)
 	if !ok {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
@@ -125,7 +125,7 @@ func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &n); err != nil {
 		return &InvalidValueError[T]{Value: string(data)}
 	}
-	v, ok := lookup[T](n)
+	v, ok := resolve[T](n)
 	if !ok {
 		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
 	}
@@ -150,7 +150,7 @@ func (e *IntEnum[T]) Scan(src any) error {
 		var zero T
 		return fmt.Errorf("enum: cannot scan %T into %T", src, zero)
 	}
-	m, ok := lookup[T](n)
+	m, ok := resolve[T](n)
 	if !ok {
 		return &InvalidValueError[T]{Value: strconv.Itoa(n)}
 	}

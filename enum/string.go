@@ -91,7 +91,7 @@ func (StringEnum[T]) isEnumMember() {}
 // returns *InvalidValueError[T]. JSON null is left untouched (the text path only
 // fires on quoted strings).
 func (e *StringEnum[T]) UnmarshalText(text []byte) error {
-	v, ok := lookup[T](string(text))
+	v, ok := resolve[T](string(text))
 	if !ok {
 		return &InvalidValueError[T]{Value: string(text)}
 	}
@@ -116,7 +116,7 @@ func (e *StringEnum[T]) Scan(src any) error {
 		var zero T
 		return fmt.Errorf("enum: cannot scan %T into %T", src, zero)
 	}
-	m, ok := lookup[T](s)
+	m, ok := resolve[T](s)
 	if !ok {
 		return &InvalidValueError[T]{Value: s}
 	}
