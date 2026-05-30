@@ -19,6 +19,35 @@ enumcheck ./...
 go vet -vettool=$(which enumcheck) ./...
 ```
 
+### With golangci-lint
+
+This module ships a [module-plugin](https://golangci-lint.run/plugins/module-plugins/)
+entry point at `github.com/paulo-raca/go-enums/enumcheck/plugin`. Add a
+`.custom-gcl.yml`:
+
+```yaml
+version: v2.1.0 # match your installed golangci-lint version
+plugins:
+  - module: github.com/paulo-raca/go-enums/enumcheck
+    import: github.com/paulo-raca/go-enums/enumcheck/plugin
+    version: latest
+```
+
+then `golangci-lint custom` (builds `./custom-gcl`) and enable it in
+`.golangci.yml`:
+
+```yaml
+version: "2"
+linters:
+  enable:
+    - enumcheck
+  settings:
+    custom:
+      enumcheck:
+        type: module
+        description: go-enums invariants and switch exhaustiveness
+```
+
 ## What it checks
 
 1. **Enum shape.** A type that embeds `enum.StringEnum`/`enum.IntEnum` must embed

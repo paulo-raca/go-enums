@@ -113,17 +113,27 @@ if errors.As(err, &invalid) {
 }
 ```
 
-## Switch exhaustiveness (`enumcheck`)
+## Linting with `enumcheck`
 
 Because members are package-level `var`s rather than `const`s, the stock
 `exhaustive` linter can't check `switch`es over these enums. The optional
-[`enumcheck`](enumcheck) analyzer does, and also enforces the patterns that keep
-the member set statically knowable:
+[`enumcheck`](enumcheck) analyzer does — and it also enforces the invariants that
+keep the member set statically knowable in the first place.
 
-```sh
-go install github.com/paulo-raca/go-enums/enumcheck/cmd/enumcheck@latest
-enumcheck ./...
-```
+**What it checks:**
+
+1. **Enum shape** — a type embedding `enum.StringEnum`/`enum.IntEnum` must embed
+   exactly that one base and nothing else, parameterised by itself
+   (`type Suit struct{ enum.StringEnum[Suit] }`). Extra fields, a non-embedded
+   base, or a mismatched `Self` (`enum.StringEnum[Other]`) are flagged.
+2. **Member declaration** — `enum.New` / `enum.NextInt` may appear only as the
+   direct initialiser of a package-level `var`; member vars may not be
+   reassigned; and members must be declared in the enum type's own package
+   (so the set is complete and statically enumerable).
+3. **Switch exhaustiveness** — in a `switch` over an enum type, every case must
+   name a member of that enum, and either all members are covered or a `default`
+   clause is present. Works across packages (member sets travel via analysis
+   facts).
 
 ```go
 switch s { // enumcheck: non-exhaustive switch on Suit: missing Spades
@@ -132,5 +142,45 @@ case Diamonds:
 }
 ```
 
-It's a separate module, so it adds no dependencies to the `enum` package itself.
-See [enumcheck/README.md](enumcheck/README.md).
+**Standalone, or through `go vet`:**
+
+```sh
+go install github.com/paulo-raca/go-enums/enumcheck/cmd/enumcheck@latest
+enumcheck ./...
+go vet -vettool=$(which enumcheck) ./...
+```
+
+**With golangci-lint** (the [module plugin system](https://golangci-lint.run/plugins/module-plugins/)) — add a `.custom-gcl.yml` at your repo root:
+
+```yaml
+version: v2.1.0 # match your installed golangci-lint version
+plugins:
+  - module: github.com/paulo-raca/go-enums/enumcheck
+    import: github.com/paulo-raca/go-enums/enumcheck/plugin
+    version: latest
+```
+
+Build a custom binary that bundles the plugin, then run it:
+
+```sh
+golangci-lint custom   # produces ./custom-gcl
+./custom-gcl run
+```
+
+…and enable it in `.golangci.yml`:
+
+```yaml
+version: "2"
+linters:
+  enable:
+    - enumcheck
+  settings:
+    custom:
+      enumcheck:
+        type: module
+        description: go-enums invariants and switch exhaustiveness
+```
+
+`enumcheck` lives in its own module, so it adds **no dependencies** to the `enum`
+package itself. See [enumcheck/README.md](enumcheck/README.md) for details and
+limitations.
