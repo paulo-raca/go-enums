@@ -48,7 +48,7 @@
 // mutex-guarded, so concurrent reads and runtime registration are safe, though
 // registration is normally an init-time var-block affair.
 //
-// Requires Go 1.22+ (reflect.TypeFor).
+// Requires Go 1.24+.
 package enum
 
 import (

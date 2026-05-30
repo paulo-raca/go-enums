@@ -276,7 +276,7 @@ func TestIntInStruct(t *testing.T) {
 }
 
 // TestUnsetFieldSerialization pins the README's claim: an unset (zero) enum
-// field is a marshal error by default, but `json:",omitzero"` or a pointer make
+// field is a marshal error by default, but json:",omitzero" or a pointer make
 // "unset" serializable.
 func TestUnsetFieldSerialization(t *testing.T) {
 	// Default: an unset enum field surfaces as a marshal error.
@@ -321,7 +321,7 @@ func TestUnsetFieldSerialization(t *testing.T) {
 	// value; an absent or null pointer field stays nil; present values decode.
 	var oz withOmitzero
 	require.NoError(t, json.Unmarshal([]byte(`{}`), &oz))
-	require.Equal(t, withOmitzero{}, oz) // unset → zero value
+	require.Equal(t, withOmitzero{}, oz)
 	require.NoError(t, json.Unmarshal([]byte(`{"hue":2}`), &oz))
 	require.Equal(t, Blue, oz.Hue)
 
