@@ -316,4 +316,25 @@ func TestUnsetFieldSerialization(t *testing.T) {
 	// since it points at an invalid member. Only nil means unset.
 	_, err = json.Marshal(withPtr{Hue: &Color{}})
 	require.ErrorAs(t, err, &zme)
+
+	// Unmarshal, the other direction: an absent omitzero field stays the zero
+	// value; an absent or null pointer field stays nil; present values decode.
+	var oz withOmitzero
+	require.NoError(t, json.Unmarshal([]byte(`{}`), &oz))
+	require.Equal(t, withOmitzero{}, oz) // unset → zero value
+	require.NoError(t, json.Unmarshal([]byte(`{"hue":2}`), &oz))
+	require.Equal(t, Blue, oz.Hue)
+
+	var ptrMissing withPtr
+	require.NoError(t, json.Unmarshal([]byte(`{}`), &ptrMissing))
+	require.Nil(t, ptrMissing.Hue)
+
+	var ptrNull withPtr
+	require.NoError(t, json.Unmarshal([]byte(`{"hue":null}`), &ptrNull))
+	require.Nil(t, ptrNull.Hue)
+
+	var ptrSet withPtr
+	require.NoError(t, json.Unmarshal([]byte(`{"hue":2}`), &ptrSet))
+	require.NotNil(t, ptrSet.Hue)
+	require.Equal(t, Blue, *ptrSet.Hue)
 }
