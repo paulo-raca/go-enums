@@ -35,3 +35,15 @@ jobs:
 
       - name: Test
         run: go test -race ./...
+
+      # The enumcheck analyzer tracks a recent x/tools, so it requires the
+      # current Go; exercise it only on the stable job.
+      - name: Vet enumcheck module
+        if: matrix.go == 'stable'
+        run: go vet ./...
+        working-directory: enumcheck
+
+      - name: Test enumcheck module
+        if: matrix.go == 'stable'
+        run: go test ./...
+        working-directory: enumcheck
