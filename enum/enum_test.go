@@ -500,25 +500,25 @@ var (
 )
 
 func TestTags(t *testing.T) {
-	// AnyOf (union), deduped, in registration order.
-	require.Equal(t, []Card{CA1, CA2}, enum.AnyOf[Card](GroupA))
-	require.Equal(t, []Card{CA1, CB1}, enum.AnyOf[Card](Tier1))
-	require.Equal(t, []Card{CA1, CA2, CB1}, enum.AnyOf[Card](GroupA, Tier1)) // the motivating example
-	require.Equal(t, []Card{CA1, CA2, CB1, CB2}, enum.AnyOf[Card](GroupA, GroupB))
+	// ValuesWithTag (union), deduped, in registration order.
+	require.Equal(t, []Card{CA1, CA2}, enum.ValuesWithTag[Card](GroupA))
+	require.Equal(t, []Card{CA1, CB1}, enum.ValuesWithTag[Card](Tier1))
+	require.Equal(t, []Card{CA1, CA2, CB1}, enum.ValuesWithTag[Card](GroupA, Tier1)) // the motivating example
+	require.Equal(t, []Card{CA1, CA2, CB1, CB2}, enum.ValuesWithTag[Card](GroupA, GroupB))
 
-	// AllOf (intersection).
-	require.Equal(t, []Card{CA1}, enum.AllOf[Card](GroupA, Tier1))
-	require.Empty(t, enum.AllOf[Card](GroupA, GroupB)) // nothing is in both groups
+	// ValuesWithAllTags (intersection).
+	require.Equal(t, []Card{CA1}, enum.ValuesWithAllTags[Card](GroupA, Tier1))
+	require.Empty(t, enum.ValuesWithAllTags[Card](GroupA, GroupB)) // nothing is in both groups
 
 	// A second, unrelated tag type, queried separately.
-	require.Equal(t, []Card{CA1, CB2}, enum.AnyOf[Card](Common))
+	require.Equal(t, []Card{CA1, CB2}, enum.ValuesWithTag[Card](Common))
 
 	// Tag types may be mixed in one query.
-	require.Equal(t, []Card{CA1, CA2, CB2}, enum.AnyOf[Card](GroupA, Common)) // GroupA OR Common
-	require.Equal(t, []Card{CA1}, enum.AllOf[Card](GroupA, Common))           // GroupA AND Common
+	require.Equal(t, []Card{CA1, CA2, CB2}, enum.ValuesWithTag[Card](GroupA, Common)) // GroupA OR Common
+	require.Equal(t, []Card{CA1}, enum.ValuesWithAllTags[Card](GroupA, Common))       // GroupA AND Common
 
 	// Empty query -> nil.
-	require.Nil(t, enum.AnyOf[Card]())
+	require.Nil(t, enum.ValuesWithTag[Card]())
 
 	// HasTag method (any arg).
 	require.True(t, CA1.HasTag(GroupA))
@@ -535,6 +535,6 @@ func TestTags(t *testing.T) {
 	require.Empty(t, z.Tags())
 
 	// Untagged enums (Suit) have no tags and miss every query.
-	require.Empty(t, enum.AnyOf[Suit](GroupA))
+	require.Empty(t, enum.ValuesWithTag[Suit](GroupA))
 	require.False(t, Hearts.HasTag(GroupA))
 }

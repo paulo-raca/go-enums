@@ -34,8 +34,8 @@
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
 //   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
 //     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
-//   - typed tags via New(v, Tag(g)...): query with AnyOf[T]/AllOf[T], and the
-//     member methods HasTag(tag)/Tags()
+//   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (union) /
+//     ValuesWithAllTags[T] (intersection), plus member methods HasTag(tag)/Tags()
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -187,7 +187,7 @@ func registerLocked[T Enum, PT interface {
 // also advances the auto-increment counter so a following NextInt yields one
 // past the highest value. Registering the same value twice for a type panics.
 //
-// Optional Tag options attach tags to the member; see Tag, AnyOf, AllOf.
+// Optional Tag options attach tags to the member; see Tag, ValuesWithTag, ValuesWithAllTags.
 func New[T Enum, V any, PT interface {
 	*T
 	set(V)
@@ -211,7 +211,7 @@ type Option struct{ tag any }
 
 // Tag attaches a tag to the member being constructed. A tag is a value of any
 // comparable type; use a named type — a small `type Group string`, or a go-enums
-// enum — so tags are typo-proof and can be cross-queried with AnyOf/AllOf. A
+// enum — so tags are typo-proof and can be cross-queried with ValuesWithTag/ValuesWithAllTags. A
 // member may carry tags of several different types.
 //
 //	A1 = enum.New[Suit]("a.1", enum.Tag(GroupA), enum.Tag(Tier1))
@@ -229,27 +229,28 @@ func tagsOf(opts []Option) []any {
 	return tags
 }
 
-// AnyOf returns the members of T tagged with at least one of the given tags
-// (set union), deduplicated and in registration order. Tags may be of different
-// types in one query (they were comparable by construction; see Tag). With no
-// tags it returns nil.
+// ValuesWithTag returns the members of T tagged with at least one of the given
+// tags (set union), deduplicated and in registration order. Tags may be of
+// different types in one query (they are comparable by construction; see Tag).
+// With no tags it returns nil.
 //
-//	enum.AnyOf[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
-//	enum.AnyOf[Card](GroupA, Common) // mixed tag types: in GroupA OR Common
-func AnyOf[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
+//	enum.ValuesWithTag[Suit](GroupA)         // members tagged GroupA
+//	enum.ValuesWithTag[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
+//	enum.ValuesWithTag[Card](GroupA, Common) // mixed tag types: in GroupA OR Common
+func ValuesWithTag[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
 
-// AllOf returns the members of T tagged with every one of the given tags (set
-// intersection), in registration order. Tags may be of different types. With no
-// tags it returns nil.
+// ValuesWithAllTags returns the members of T tagged with every one of the given
+// tags (set intersection), in registration order. Tags may be of different
+// types. With no tags it returns nil.
 //
-//	enum.AllOf[Suit](GroupA, Tier1) // members in GroupA AND Tier1
-func AllOf[T Enum](tags ...any) []T { return queryTags[T](tags, true) }
+//	enum.ValuesWithAllTags[Suit](GroupA, Tier1) // members in GroupA AND Tier1
+func ValuesWithAllTags[T Enum](tags ...any) []T { return queryTags[T](tags, true) }
 
 func queryTags[T Enum](tags []any, needAll bool) []T {
 	if len(tags) == 0 {
 		return nil
 	}
-	// De-duplicate query tags so AllOf's threshold counts distinct tags.
+	// De-duplicate query tags so ValuesWithAllTags's threshold counts distinct tags.
 	distinct := make([]any, 0, len(tags))
 	for _, t := range tags {
 		distinct = appendUnique(distinct, t)

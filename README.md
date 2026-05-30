@@ -87,7 +87,7 @@ named comparable type — use a small `type X string` or a go-enums enum so tags
 are typo-proof:
 
 ```go
-// One flat tag namespace (groups and tiers), so they cross-query.
+// Groups and tiers modelled as one tag type (they could also be separate types).
 type CardTag struct{ enum.StringEnum[CardTag] }
 
 var (
@@ -104,19 +104,20 @@ var (
 	B1 = enum.New[Card]("b.1", enum.Tag(GroupB), enum.Tag(Tier1))
 )
 
-enum.AnyOf[Card](GroupA)         // [A1, A2]      — union (deduped, registration order)
-enum.AnyOf[Card](GroupA, Tier1)  // [A1, A2, B1]
-enum.AllOf[Card](GroupA, Tier1)  // [A1]          — intersection
+enum.ValuesWithTag[Card](GroupA)            // [A1, A2]     union (deduped, registration order)
+enum.ValuesWithTag[Card](GroupA, Tier1)     // [A1, A2, B1] union
+enum.ValuesWithAllTags[Card](GroupA, Tier1) // [A1]         intersection
 
 A1.HasTag(GroupA)                // true   (arg is any; a wrong-typed tag is just false)
 A1.Tags()                        // []any{GroupA, Tier1}
 ```
 
-`AnyOf` is union (the no-boilerplate default); `AllOf` is intersection. A member
-may carry tags of several different types (e.g. also a `Rarity`), and a single
-query may **mix tag types** — `enum.AnyOf[Card](GroupA, Common)`. The query
-functions take `...any` (Go won't let `comparable` be a parameter type), but tags
-are comparable-by-construction via `Tag`, so the matching can't panic.
+`ValuesWithTag` is the union (no-boilerplate default); `ValuesWithAllTags` is the
+intersection. A member may carry tags of several different types (e.g. also a
+`Rarity`), and a single query may **mix tag types** —
+`enum.ValuesWithTag[Card](GroupA, Common)`. The query functions take `...any` (Go
+won't let `comparable` be a parameter type), but tags are comparable-by-construction
+via `Tag`, so the matching can't panic.
 
 ## Closed by construction
 
