@@ -86,6 +86,14 @@ func (e *StringEnum[T]) setPos(p int) { e.pos = p }
 // type an Enum — an arbitrary comparable Stringer cannot qualify.
 func (StringEnum[T]) isEnumMember() {}
 
+// HasTag reports whether e was tagged (via enum.Tag) with tag. tag is any value
+// — a tag of the wrong type simply returns false. The zero value has no tags.
+func (e StringEnum[T]) HasTag(tag any) bool { return hasTag[T](e.pos, tag) }
+
+// Tags returns e's tags in declaration order. The slice is heterogeneous (a
+// member may be tagged with several types), so it is []any.
+func (e StringEnum[T]) Tags() []any { return memberTags[T](e.pos) }
+
 // UnmarshalText implements encoding.TextUnmarshaler. It resolves text against
 // T's registered members and copies in the canonical value and position, or
 // returns *InvalidValueError[T]. JSON null is left untouched (the text path only

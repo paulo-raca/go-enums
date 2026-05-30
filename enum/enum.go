@@ -34,6 +34,9 @@
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
 //   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
 //     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
+//   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
+//     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
+//     member methods HasTag(tag)/Tags()
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -57,6 +60,7 @@ package enum
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 )
 
@@ -108,10 +112,11 @@ func (e *ZeroMarshalError[T]) Error() string {
 // position and so is not a stable dedup key). A member lives in exactly one of
 // names/ints depending on its base, never both.
 type bucket struct {
-	order  []any          // members in registration order, for Values
-	names  map[string]any // value -> member, for Lookup/Valid + dedup (StringEnum only)
-	ints   map[int]any    // value -> member, for Lookup/Valid + dedup (IntEnum only)
-	maxInt int            // highest value seen so far (IntEnum only)
+	order      []any          // members in registration order, for Values
+	names      map[string]any // value -> member, for Lookup/Valid + dedup (StringEnum only)
+	ints       map[int]any    // value -> member, for Lookup/Valid + dedup (IntEnum only)
+	maxInt     int            // highest value seen so far (IntEnum only)
+	tagsBySlot [][]any        // tags per member, parallel to order (slot = Position)
 }
 
 var (
@@ -137,7 +142,7 @@ func bucketOf(t reflect.Type) *bucket {
 func registerLocked[T Enum, PT interface {
 	*T
 	setPos(int)
-}](t *T, hasInt bool, ival int) {
+}](t *T, hasInt bool, ival int, tags []any) {
 	b := bucketOf(reflect.TypeFor[T]())
 	// Position is the next free slot. Assign it before reading String() so the
 	// member no longer renders as the zero-value placeholder.
@@ -156,6 +161,7 @@ func registerLocked[T Enum, PT interface {
 
 	v := *t
 	b.order = append(b.order, v)
+	b.tagsBySlot = append(b.tagsBySlot, tags) // kept parallel to order
 	if hasInt {
 		// Track the running maximum in O(1) so NextInt never has to scan the
 		// member set, even when explicit New values are interleaved. Check
@@ -182,21 +188,138 @@ func registerLocked[T Enum, PT interface {
 // mismatched value type is a compile error. For an IntEnum, an explicit value
 // also advances the auto-increment counter so a following NextInt yields one
 // past the highest value. Registering the same value twice for a type panics.
+//
+// Optional Tag options attach tags to the member; see Tag and the
+// ValuesWithTag/ValuesWithAnyTags/ValuesWithAllTags queries.
 func New[T Enum, V any, PT interface {
 	*T
 	set(V)
 	setPos(int)
-}](v V) T {
+}](v V, opts ...Option) T {
 	var t T
 	PT(&t).set(v)
+	tags := tagsOf(opts)
 	mu.Lock()
 	defer mu.Unlock()
 	if iv, ok := any(v).(int); ok {
-		registerLocked[T, PT](&t, true, iv)
+		registerLocked[T, PT](&t, true, iv, tags)
 	} else {
-		registerLocked[T, PT](&t, false, 0)
+		registerLocked[T, PT](&t, false, 0, tags)
 	}
 	return t
+}
+
+// Option configures a member at construction. The only option today is Tag.
+type Option struct{ tag any }
+
+// Tag attaches a tag to the member being constructed. A tag is a value of any
+// comparable type; use a named type — a small `type Group string`, or a go-enums
+// enum — so tags are typo-proof and can be cross-queried with ValuesWithTag/ValuesWithAllTags. A
+// member may carry tags of several different types.
+//
+//	A1 = enum.New[Suit]("a.1", enum.Tag(GroupA), enum.Tag(Tier1))
+func Tag[G comparable](g G) Option { return Option{tag: g} }
+
+// tagsOf flattens and de-duplicates the tags carried by opts.
+func tagsOf(opts []Option) []any {
+	if len(opts) == 0 {
+		return nil
+	}
+	tags := make([]any, 0, len(opts))
+	for _, o := range opts {
+		tags = appendUnique(tags, o.tag)
+	}
+	return tags
+}
+
+// ValuesWithTag returns the members of T tagged with tag, in registration order.
+// It is the single-tag form; for several tags use ValuesWithAnyTags (union) or
+// ValuesWithAllTags (intersection).
+//
+//	enum.ValuesWithTag[Suit](GroupA) // members tagged GroupA
+func ValuesWithTag[T Enum](tag any) []T { return queryTags[T]([]any{tag}, false) }
+
+// ValuesWithAnyTags returns the members of T tagged with at least one of the
+// given tags (set union), deduplicated and in registration order. Tags may be of
+// different types in one query (they are comparable by construction; see Tag).
+// With no tags it returns nil.
+//
+//	enum.ValuesWithAnyTags[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
+//	enum.ValuesWithAnyTags[Card](GroupA, Common) // mixed tag types
+func ValuesWithAnyTags[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
+
+// ValuesWithAllTags returns the members of T tagged with every one of the given
+// tags (set intersection), in registration order. Tags may be of different
+// types. With no tags it returns nil.
+//
+//	enum.ValuesWithAllTags[Suit](GroupA, Tier1) // members in GroupA AND Tier1
+func ValuesWithAllTags[T Enum](tags ...any) []T { return queryTags[T](tags, true) }
+
+func queryTags[T Enum](tags []any, needAll bool) []T {
+	if len(tags) == 0 {
+		return nil
+	}
+	// De-duplicate query tags so ValuesWithAllTags's threshold counts distinct tags.
+	distinct := make([]any, 0, len(tags))
+	for _, t := range tags {
+		distinct = appendUnique(distinct, t)
+	}
+	tags = distinct
+
+	mu.RLock()
+	defer mu.RUnlock()
+	b := reg[reflect.TypeFor[T]()]
+	if b == nil {
+		return nil
+	}
+	var out []T
+	for i, m := range b.order {
+		have := 0
+		for _, qt := range tags {
+			if slices.Contains(b.tagsBySlot[i], qt) {
+				have++
+			}
+		}
+		if (needAll && have == len(tags)) || (!needAll && have > 0) {
+			out = append(out, m.(T))
+		}
+	}
+	return out
+}
+
+// hasTag reports whether the member at 1-based position pos carries tag.
+func hasTag[T Enum](pos int, tag any) bool {
+	if pos == 0 {
+		return false
+	}
+	mu.RLock()
+	defer mu.RUnlock()
+	b := reg[reflect.TypeFor[T]()]
+	return b != nil && pos <= len(b.tagsBySlot) && slices.Contains(b.tagsBySlot[pos-1], tag)
+}
+
+// memberTags returns a copy of the tags of the member at 1-based position pos.
+func memberTags[T Enum](pos int) []any {
+	if pos == 0 {
+		return nil
+	}
+	mu.RLock()
+	defer mu.RUnlock()
+	b := reg[reflect.TypeFor[T]()]
+	if b == nil || pos > len(b.tagsBySlot) {
+		return nil
+	}
+	return append([]any(nil), b.tagsBySlot[pos-1]...)
+}
+
+// appendUnique appends v to xs unless it is already present (order-preserving
+// de-dup over a small slice). slices.Contains handles membership; v is
+// comparable by construction (see Tag), so the == comparison can't panic.
+func appendUnique(xs []any, v any) []any {
+	if slices.Contains(xs, v) {
+		return xs
+	}
+	return append(xs, v)
 }
 
 // nextIntLocked reports the next auto-increment value for T: one past the
