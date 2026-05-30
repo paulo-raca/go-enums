@@ -274,3 +274,41 @@ func TestIntInStruct(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &out))
 	require.Equal(t, in, out)
 }
+
+// TestUnsetFieldSerialization pins the README's claim: an unset (zero) enum
+// field is a marshal error by default, but `json:",omitzero"` or a pointer make
+// "unset" serializable.
+func TestUnsetFieldSerialization(t *testing.T) {
+	// Default: an unset enum field surfaces as a marshal error.
+	type plain struct {
+		Hue Color `json:"hue"`
+	}
+	_, err := json.Marshal(plain{}) // Hue is the zero value
+	var zme *enum.ZeroMarshalError[Color]
+	require.ErrorAs(t, err, &zme, "unset field should error without a workaround")
+
+	// omitzero: the zero field is dropped; a real member still marshals.
+	type withOmitzero struct {
+		Hue Color `json:"hue,omitzero"`
+	}
+	b, err := json.Marshal(withOmitzero{})
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(b))
+
+	b, err = json.Marshal(withOmitzero{Hue: Blue})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"hue":2}`, string(b))
+
+	// pointer: nil serializes as null; a real member still marshals.
+	type withPtr struct {
+		Hue *Color `json:"hue"`
+	}
+	b, err = json.Marshal(withPtr{})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"hue":null}`, string(b))
+
+	blue := Blue
+	b, err = json.Marshal(withPtr{Hue: &blue})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"hue":2}`, string(b))
+}
