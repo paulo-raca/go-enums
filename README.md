@@ -60,11 +60,14 @@ var (
 
 ## What you get for free, per type
 
-- `String()` — `fmt.Stringer`
+- `String()` — `fmt.Stringer`; the raw backing value via `StringEnum.String()` /
+  `IntEnum.Int()`
 - `MarshalText` / `UnmarshalText` — `encoding.Text{Marshaler,Unmarshaler}`
-- JSON: `StringEnum` as a string, `IntEnum` as a number
+- JSON: `StringEnum` as a string, `IntEnum` as a number (and `null` is a no-op)
+- `database/sql`: `driver.Valuer` + `sql.Scanner` (`StringEnum` as text, `IntEnum`
+  as `int64`); use a `*T` pointer for a nullable column
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
-  (marshalling the zero value) errors, both matchable with `errors.As`
+  (marshalling/persisting the zero value) errors, both matchable with `errors.As`
 - `enum.Values[T]()` (in registration order), `enum.FromValue[T](value)`
 - `enum.Valid[T](value)` — does a backing `int`/`string` name a registered member?
 - `member.IsValid()` — is this a real member, or the zero value? (lock-free)
