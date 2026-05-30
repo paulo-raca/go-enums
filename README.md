@@ -4,7 +4,7 @@ Generic, closed-set, value-backed enums for Go — without the per-type
 boilerplate (`String`, `MarshalText`/`UnmarshalText`, JSON, validation,
 listing).
 
-Requires Go 1.22+ (`reflect.TypeFor`).
+Requires Go 1.24+.
 
 ```go
 import "github.com/paulo-raca/go-enums/enum"
@@ -88,8 +88,8 @@ can use `MyEnum{}` as an "unset" sentinel (detect it with `== MyEnum{}` or
 `Valid`) and still have a real member at `0`/`""`. The zero value renders as
 `<invalid Suit>` (the type name) from `String()` and is refused by the marshallers (its `""`/`0`
 output wouldn't round-trip), so an unset enum field surfaces as a marshal error
-rather than silently corrupt data — use `json:",omitzero"` or a pointer if
-"unset" should be serializable.
+rather than silently corrupt data — use `json:",omitzero"` or a `*Suit` pointer
+if "unset" should be serializable.
 
 Registering the same value twice for a type — a copy-pasted member, or two
 `IntEnum` members sharing a value — **panics** at init time rather than passing
