@@ -60,6 +60,7 @@ package enum
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 )
 
@@ -188,7 +189,8 @@ func registerLocked[T Enum, PT interface {
 // also advances the auto-increment counter so a following NextInt yields one
 // past the highest value. Registering the same value twice for a type panics.
 //
-// Optional Tag options attach tags to the member; see Tag, ValuesWithTag, ValuesWithAllTags.
+// Optional Tag options attach tags to the member; see Tag and the
+// ValuesWithTag/ValuesWithAnyTags/ValuesWithAllTags queries.
 func New[T Enum, V any, PT interface {
 	*T
 	set(V)
@@ -274,7 +276,7 @@ func queryTags[T Enum](tags []any, needAll bool) []T {
 	for i, m := range b.order {
 		have := 0
 		for _, qt := range tags {
-			if containsAny(b.tagsBySlot[i], qt) {
+			if slices.Contains(b.tagsBySlot[i], qt) {
 				have++
 			}
 		}
@@ -293,7 +295,7 @@ func hasTag[T Enum](pos int, tag any) bool {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
-	return b != nil && pos <= len(b.tagsBySlot) && containsAny(b.tagsBySlot[pos-1], tag)
+	return b != nil && pos <= len(b.tagsBySlot) && slices.Contains(b.tagsBySlot[pos-1], tag)
 }
 
 // memberTags returns a copy of the tags of the member at 1-based position pos.
@@ -310,17 +312,11 @@ func memberTags[T Enum](pos int) []any {
 	return append([]any(nil), b.tagsBySlot[pos-1]...)
 }
 
-func containsAny(xs []any, v any) bool {
-	for _, x := range xs {
-		if x == v {
-			return true
-		}
-	}
-	return false
-}
-
+// appendUnique appends v to xs unless it is already present (order-preserving
+// de-dup over a small slice). slices.Contains handles membership; v is
+// comparable by construction (see Tag), so the == comparison can't panic.
 func appendUnique(xs []any, v any) []any {
-	if containsAny(xs, v) {
+	if slices.Contains(xs, v) {
 		return xs
 	}
 	return append(xs, v)
