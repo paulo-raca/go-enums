@@ -34,8 +34,9 @@
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
 //   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
 //     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
-//   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (union) /
-//     ValuesWithAllTags[T] (intersection), plus member methods HasTag(tag)/Tags()
+//   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
+//     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
+//     member methods HasTag(tag)/Tags()
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -229,15 +230,21 @@ func tagsOf(opts []Option) []any {
 	return tags
 }
 
-// ValuesWithTag returns the members of T tagged with at least one of the given
-// tags (set union), deduplicated and in registration order. Tags may be of
+// ValuesWithTag returns the members of T tagged with tag, in registration order.
+// It is the single-tag form; for several tags use ValuesWithAnyTags (union) or
+// ValuesWithAllTags (intersection).
+//
+//	enum.ValuesWithTag[Suit](GroupA) // members tagged GroupA
+func ValuesWithTag[T Enum](tag any) []T { return queryTags[T]([]any{tag}, false) }
+
+// ValuesWithAnyTags returns the members of T tagged with at least one of the
+// given tags (set union), deduplicated and in registration order. Tags may be of
 // different types in one query (they are comparable by construction; see Tag).
 // With no tags it returns nil.
 //
-//	enum.ValuesWithTag[Suit](GroupA)         // members tagged GroupA
-//	enum.ValuesWithTag[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
-//	enum.ValuesWithTag[Card](GroupA, Common) // mixed tag types: in GroupA OR Common
-func ValuesWithTag[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
+//	enum.ValuesWithAnyTags[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
+//	enum.ValuesWithAnyTags[Card](GroupA, Common) // mixed tag types
+func ValuesWithAnyTags[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
 
 // ValuesWithAllTags returns the members of T tagged with every one of the given
 // tags (set intersection), in registration order. Tags may be of different

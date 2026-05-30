@@ -500,13 +500,15 @@ var (
 )
 
 func TestTags(t *testing.T) {
-	// ValuesWithTag (union), deduped, in registration order.
+	// ValuesWithTag: single tag, in registration order.
 	require.Equal(t, []Card{CA1, CA2}, enum.ValuesWithTag[Card](GroupA))
 	require.Equal(t, []Card{CA1, CB1}, enum.ValuesWithTag[Card](Tier1))
-	require.Equal(t, []Card{CA1, CA2, CB1}, enum.ValuesWithTag[Card](GroupA, Tier1)) // the motivating example
-	require.Equal(t, []Card{CA1, CA2, CB1, CB2}, enum.ValuesWithTag[Card](GroupA, GroupB))
 
-	// ValuesWithAllTags (intersection).
+	// ValuesWithAnyTags: union, deduped, in registration order.
+	require.Equal(t, []Card{CA1, CA2, CB1}, enum.ValuesWithAnyTags[Card](GroupA, Tier1)) // motivating example
+	require.Equal(t, []Card{CA1, CA2, CB1, CB2}, enum.ValuesWithAnyTags[Card](GroupA, GroupB))
+
+	// ValuesWithAllTags: intersection.
 	require.Equal(t, []Card{CA1}, enum.ValuesWithAllTags[Card](GroupA, Tier1))
 	require.Empty(t, enum.ValuesWithAllTags[Card](GroupA, GroupB)) // nothing is in both groups
 
@@ -514,11 +516,11 @@ func TestTags(t *testing.T) {
 	require.Equal(t, []Card{CA1, CB2}, enum.ValuesWithTag[Card](Common))
 
 	// Tag types may be mixed in one query.
-	require.Equal(t, []Card{CA1, CA2, CB2}, enum.ValuesWithTag[Card](GroupA, Common)) // GroupA OR Common
-	require.Equal(t, []Card{CA1}, enum.ValuesWithAllTags[Card](GroupA, Common))       // GroupA AND Common
+	require.Equal(t, []Card{CA1, CA2, CB2}, enum.ValuesWithAnyTags[Card](GroupA, Common)) // GroupA OR Common
+	require.Equal(t, []Card{CA1}, enum.ValuesWithAllTags[Card](GroupA, Common))           // GroupA AND Common
 
-	// Empty query -> nil.
-	require.Nil(t, enum.ValuesWithTag[Card]())
+	// Empty union query -> nil.
+	require.Nil(t, enum.ValuesWithAnyTags[Card]())
 
 	// HasTag method (any arg).
 	require.True(t, CA1.HasTag(GroupA))
