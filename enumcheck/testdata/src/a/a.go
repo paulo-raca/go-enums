@@ -17,6 +17,17 @@ type BadExtra struct { // want `enum type BadExtra must embed only enum\.StringE
 
 type BadSelf struct{ enum.StringEnum[Suit] } // want `enum base must be parameterised by BadSelf, not Suit`
 
+type BadIntExtra struct { // want `enum type BadIntExtra must embed only enum\.IntEnum\[BadIntExtra\] and nothing else`
+	enum.IntEnum[BadIntExtra]
+	Extra int
+}
+
+type BadMixedEnum struct { // want `enum type BadMixedEnum must embed only enum\.StringEnum\[BadMixedEnum\] and nothing else`
+	enum.StringEnum[BadIntExtra]
+	enum.IntEnum[BadIntExtra]
+	Extra int
+}
+
 // --- members ---
 
 var (
