@@ -423,4 +423,10 @@ func TestUnmarshalJSONNullIsNoOp(t *testing.T) {
 	sh := strHolder{Suit: Spades}
 	require.NoError(t, json.Unmarshal([]byte(`{"suit":null}`), &sh))
 	require.Equal(t, Spades, sh.Suit)
+
+	// Defensive: a JSON encoder that hands UnmarshalJSON padded bytes (stdlib
+	// trims, but the Unmarshaler contract doesn't require it) is still a no-op.
+	c := Blue
+	require.NoError(t, c.UnmarshalJSON([]byte("  null  ")))
+	require.Equal(t, Blue, c)
 }

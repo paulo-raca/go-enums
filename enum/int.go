@@ -1,6 +1,7 @@
 package enum
 
 import (
+	"bytes"
 	"cmp"
 	"database/sql/driver"
 	"encoding/json"
@@ -114,7 +115,10 @@ func (e *IntEnum[T]) UnmarshalText(text []byte) error {
 // the convention for json.Unmarshaler — matching StringEnum, whose text path
 // also ignores null.
 func (e *IntEnum[T]) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
+	// encoding/json hands us whitespace-trimmed bytes, but trim defensively so
+	// alternative JSON encoders that don't are still handled. (Go optimizes
+	// string(b) == "literal" to avoid allocating.)
+	if string(bytes.TrimSpace(data)) == "null" {
 		return nil
 	}
 	var n int
