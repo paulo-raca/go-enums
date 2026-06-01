@@ -71,8 +71,9 @@ var (
 - `enum.Values[T]()` (in registration order)
 - four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.Lookup[T]` →
   `(T, bool)`, `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
-- `member.IsValid()` — is this a real member, or the zero value? (lock-free)
-- `member.Position()` — 0-based registration order (`-1` for the zero value)
+- `member.IsValid()` / `member.IsZero()` — is this a real member or the zero
+  value? (lock-free; `IsZero` also drives `json:",omitzero"`)
+- `member.Index()` — 0-based registration order (`-1` for the zero value)
 - `a.Compare(b)` — order members by registration position. Go has no operator
   overloading, so `a < b` is `a.Compare(b) < 0` (likewise `<=`, `>`, `>=`)
 
@@ -127,8 +128,8 @@ declare enum types and call them, but cannot forge arbitrary values — that's a
 compile-time error. The zero value of an enum is constructible but never
 registered, so `Valid` reports it `false`. It also stays distinct even from a
 member backed by `""` or `0` — i.e. `MyEnum{} != enum.New[MyEnum](0)` — so you
-can use `MyEnum{}` as an "unset" sentinel (detect it with `== MyEnum{}` or
-`Valid`) and still have a real member at `0`/`""`. The zero value renders as
+can use `MyEnum{}` as an "unset" sentinel (detect it with `member.IsZero()`,
+`== MyEnum{}`, or `Valid`) and still have a real member at `0`/`""`. The zero value renders as
 `<invalid Suit>` (the type name) from `String()` and is refused by the marshallers (its `""`/`0`
 output wouldn't round-trip), so an unset enum field surfaces as a marshal error
 rather than silently corrupt data — use `json:",omitzero"` or a `*Suit` pointer
