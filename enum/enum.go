@@ -28,9 +28,9 @@
 //   - database/sql: driver.Valuer + sql.Scanner (StringEnum as text, IntEnum as
 //     int64); nullable columns use a *T pointer
 //   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
-//   - IsValid() and Position() methods on each member (Position is 0-based
+//   - IsValid()/IsZero() and Index() methods on each member (Index is 0-based
 //     registration order; -1 marks the zero value)
-//   - Compare() ordering members by Position — Go has no operator overloading,
+//   - Compare() ordering members by Index — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
 //   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
 //     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
@@ -68,13 +68,13 @@ import (
 // IntEnum[Self]. Beyond being comparable and a fmt.Stringer, it requires the
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
-// types is closed at the constraint level. Position exposes the 0-based
+// types is closed at the constraint level. Index exposes the 0-based
 // registration order (-1 for the zero value).
 type Enum interface {
 	comparable
 	fmt.Stringer
 	isEnumMember()
-	Position() int
+	Index() int
 }
 
 // InvalidValueError is returned when an input does not name a registered
@@ -107,7 +107,7 @@ func (e *ZeroMarshalError[T]) Error() string {
 }
 
 // bucket holds the registered members of a single enum type. order indexes by
-// 0-based slot (Position-1); names/ints double as the duplicate-detection sets,
+// 0-based slot (Index-1); names/ints double as the duplicate-detection sets,
 // keyed by the backing value rather than the whole member (which now carries a
 // position and so is not a stable dedup key). A member lives in exactly one of
 // names/ints depending on its base, never both.
@@ -116,7 +116,7 @@ type bucket struct {
 	names      map[string]any // value -> member, for Lookup/Valid + dedup (StringEnum only)
 	ints       map[int]any    // value -> member, for Lookup/Valid + dedup (IntEnum only)
 	maxInt     int            // highest value seen so far (IntEnum only)
-	tagsBySlot [][]any        // tags per member, parallel to order (slot = Position)
+	tagsBySlot [][]any        // tags per member, parallel to order (slot = Index)
 }
 
 var (
@@ -141,12 +141,12 @@ func bucketOf(t reflect.Type) *bucket {
 // a type is a programmer error (a copy-pasted member, a clashing int) and panics.
 func registerLocked[T Enum, PT interface {
 	*T
-	setPos(int)
+	setIndex(int)
 }](t *T, hasInt bool, ival int, tags []any) {
 	b := bucketOf(reflect.TypeFor[T]())
-	// Position is the next free slot. Assign it before reading String() so the
+	// Index is the next free slot. Assign it before reading String() so the
 	// member no longer renders as the zero-value placeholder.
-	PT(t).setPos(len(b.order) + 1)
+	PT(t).setIndex(len(b.order) + 1)
 	name := (*t).String()
 
 	dup := false
@@ -194,7 +194,7 @@ func registerLocked[T Enum, PT interface {
 func New[T Enum, V any, PT interface {
 	*T
 	set(V)
-	setPos(int)
+	setIndex(int)
 }](v V, opts ...Option) T {
 	var t T
 	PT(&t).set(v)
@@ -287,29 +287,29 @@ func queryTags[T Enum](tags []any, needAll bool) []T {
 	return out
 }
 
-// hasTag reports whether the member at 1-based position pos carries tag.
-func hasTag[T Enum](pos int, tag any) bool {
-	if pos == 0 {
+// hasTag reports whether the member at 1-based position index carries tag.
+func hasTag[T Enum](index int, tag any) bool {
+	if index == 0 {
 		return false
 	}
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
-	return b != nil && pos <= len(b.tagsBySlot) && slices.Contains(b.tagsBySlot[pos-1], tag)
+	return b != nil && index <= len(b.tagsBySlot) && slices.Contains(b.tagsBySlot[index-1], tag)
 }
 
-// memberTags returns a copy of the tags of the member at 1-based position pos.
-func memberTags[T Enum](pos int) []any {
-	if pos == 0 {
+// memberTags returns a copy of the tags of the member at 1-based position index.
+func memberTags[T Enum](index int) []any {
+	if index == 0 {
 		return nil
 	}
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
-	if b == nil || pos > len(b.tagsBySlot) {
+	if b == nil || index > len(b.tagsBySlot) {
 		return nil
 	}
-	return append([]any(nil), b.tagsBySlot[pos-1]...)
+	return append([]any(nil), b.tagsBySlot[index-1]...)
 }
 
 // appendUnique appends v to xs unless it is already present (order-preserving

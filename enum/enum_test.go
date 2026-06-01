@@ -117,26 +117,32 @@ func TestIntNextIsMaxPlusOne(t *testing.T) {
 	require.Equal(t, []int{0, 100, 50, 101, -5, 102}, got)
 }
 
-func TestPosition(t *testing.T) {
+func TestIndex(t *testing.T) {
 	// 0-based registration order; zero value is -1.
-	require.Equal(t, 0, Hearts.Position())
-	require.Equal(t, 1, Diamonds.Position())
-	require.Equal(t, 2, Spades.Position())
+	require.Equal(t, 0, Hearts.Index())
+	require.Equal(t, 1, Diamonds.Index())
+	require.Equal(t, 2, Spades.Index())
 
 	var z Suit
-	require.Equal(t, -1, z.Position())
+	require.Equal(t, -1, z.Index())
 
-	// Values is in registration order, and Position matches the index.
+	// IsValid / IsZero are inverses tracking the zero value.
+	require.True(t, Hearts.IsValid())
+	require.False(t, Hearts.IsZero())
+	require.False(t, z.IsValid())
+	require.True(t, z.IsZero())
+
+	// Values is in registration order, and Index matches the slice index.
 	for i, v := range enum.Values[Suit]() {
-		require.Equalf(t, i, v.Position(), "Values[%d].Position()", i)
+		require.Equalf(t, i, v.Index(), "Values[%d].Index()", i)
 	}
 
-	// Position survives a JSON round-trip (it is copied from the canonical member).
+	// Index survives a JSON round-trip (it is copied from the canonical member).
 	b, err := json.Marshal(Diamonds)
 	require.NoError(t, err)
 	var got Suit
 	require.NoError(t, json.Unmarshal(b, &got))
-	require.Equal(t, 1, got.Position())
+	require.Equal(t, 1, got.Index())
 }
 
 func TestOrder(t *testing.T) {
