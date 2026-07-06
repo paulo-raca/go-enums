@@ -37,6 +37,12 @@
 //   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
 //     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
 //     member methods HasTag(tag)/Tags()
+//   - casting between parallel enums that share a backing kind: LookupAs[To]
+//     (T, bool), As[To] (T, error), MustAs[To] (T, panics) — the zero value
+//     casts to the zero value, a cross-kind cast (string<->int) is a compile
+//     error, and enumcheck flags casts whose static value sets differ.
+//   - SameValues[A, B]() error asserts at runtime that two enum types have the
+//     exact same backing values — the runtime companion to that static check.
 //
 // A constructed member is always distinct from the zero value — even one backed
 // by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
@@ -61,6 +67,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"sync"
 )
 
@@ -414,6 +421,146 @@ func MustParse[T Enum, V any, PT interface {
 		panic(err)
 	}
 	return m
+}
+
+// LookupAs casts a member of one enum type to the member of To backed by the
+// same value — for the parallel enums that accumulate in real projects (the
+// sqlboiler one, the OpenAPI one, the business-model one), which represent the
+// same set and should convert losslessly:
+//
+//	api, ok := enum.LookupAs[OpenApiEnum](sqlEnum)
+//
+// Only To is named at the call site. The unexported get/set constraints tie
+// both enums to the same backing kind, so casting a string-backed enum to an
+// int-backed one (or vice versa) is a compile error, not a runtime miss.
+//
+// The zero value casts to the zero value: "unset" travels across the cast
+// (ok is true; IsZero holds for the result). A registered member whose value
+// names no member of To yields (zero, false) — and the enumcheck analyzer flags
+// cast sites between enums whose value sets are not exactly equal.
+//
+// LookupAs, As, and MustAs are the cast-flavored siblings of Lookup, Parse,
+// and MustParse.
+func LookupAs[To Enum, V any, From interface {
+	Enum
+	get() V
+}, PTo interface {
+	*To
+	set(V)
+}](from From) (To, bool) {
+	var zero To
+	if from.Index() < 0 {
+		return zero, true
+	}
+	return resolve[To](from.get())
+}
+
+// As is the error-returning flavor of LookupAs: a miss yields
+// *InvalidValueError[To], composing with %w and errors.As like Parse.
+//
+//	api, err := enum.As[OpenApiEnum](sqlEnum)
+func As[To Enum, V any, From interface {
+	Enum
+	get() V
+}, PTo interface {
+	*To
+	set(V)
+}](from From) (To, error) {
+	m, ok := LookupAs[To, V, From, PTo](from)
+	if !ok {
+		return m, &InvalidValueError[To]{Value: fmt.Sprint(from.get())}
+	}
+	return m, nil
+}
+
+// MustAs is the panicking sibling of As — for casts between enums whose value
+// sets are known to match (which the enumcheck analyzer can verify statically,
+// and SameValues can assert at runtime). Panics with *InvalidValueError[To].
+//
+//	api := enum.MustAs[OpenApiEnum](sqlEnum)
+func MustAs[To Enum, V any, From interface {
+	Enum
+	get() V
+}, PTo interface {
+	*To
+	set(V)
+}](from From) To {
+	m, err := As[To, V, From, PTo](from)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// SameValues reports whether enums A and B are backed by exactly the same set
+// of values, returning nil when they are and a descriptive error when they are
+// not (values present on only one side, or one type string-backed and the
+// other int-backed). It is the runtime companion to the enumcheck cast-site
+// rule — assert it in a test or init() when the linter isn't in the loop:
+//
+//	if err := enum.SameValues[SqlEnum, OpenApiEnum](); err != nil { ... }
+func SameValues[A, B Enum]() error {
+	var zeroA A
+	var zeroB B
+	aVals, aInts := valueSet[A]()
+	bVals, bInts := valueSet[B]()
+	if len(aVals) > 0 && len(bVals) > 0 && aInts != bInts {
+		kind := func(isInt bool) string {
+			if isInt {
+				return "int"
+			}
+			return "string"
+		}
+		return fmt.Errorf("enum: %T is %s-backed but %T is %s-backed", zeroA, kind(aInts), zeroB, kind(bInts))
+	}
+	onlyA := diffSorted(aVals, bVals)
+	onlyB := diffSorted(bVals, aVals)
+	if len(onlyA) == 0 && len(onlyB) == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("enum: value sets of %T and %T differ", zeroA, zeroB)
+	if len(onlyA) > 0 {
+		msg += fmt.Sprintf("; only in %T: %q", zeroA, onlyA)
+	}
+	if len(onlyB) > 0 {
+		msg += fmt.Sprintf("; only in %T: %q", zeroB, onlyB)
+	}
+	return fmt.Errorf("%s", msg)
+}
+
+// valueSet returns T's registered backing values, sorted (ints in decimal),
+// and whether T is int-backed. A type with no members yet reports
+// (nil, false).
+func valueSet[T Enum]() (vals []string, isInt bool) {
+	mu.RLock()
+	defer mu.RUnlock()
+	b := reg[reflect.TypeFor[T]()]
+	if b == nil {
+		return nil, false
+	}
+	if len(b.ints) > 0 {
+		for v := range b.ints {
+			vals = append(vals, strconv.Itoa(v))
+		}
+		isInt = true
+	} else {
+		for v := range b.names {
+			vals = append(vals, v)
+		}
+	}
+	slices.Sort(vals)
+	return vals, isInt
+}
+
+// diffSorted returns the elements of a that are not in b; both inputs sorted.
+func diffSorted(a, b []string) []string {
+	var out []string
+	for _, v := range a {
+		if _, ok := slices.BinarySearch(b, v); !ok {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // resolve is the unconstrained resolver shared by Lookup, Parse, Valid, and the

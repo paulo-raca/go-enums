@@ -81,6 +81,11 @@ func (e StringEnum[T]) Value() (driver.Value, error) {
 // of the same name; that shared name is what lets a single New serve both bases.
 func (e *StringEnum[T]) set(s string) { e.val = s }
 
+// get is the unexported value read path, the mirror of set. Promoted onto T it
+// lets the LookupAs/As/MustAs constraints prove — at compile time — that the
+// source and target enums share a backing kind (IntEnum's get returns int).
+func (e StringEnum[T]) get() string { return e.val }
+
 // setIndex records the 1-based registration position; see registerLocked. Paired
 // with set in the New/NextInt constructor constraints.
 func (e *StringEnum[T]) setIndex(p int) { e.index = p }

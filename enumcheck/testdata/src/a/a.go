@@ -4,9 +4,9 @@ import "github.com/paulo-raca/go-enums/enum"
 
 // --- valid enum types ---
 
-type Suit struct{ enum.StringEnum[Suit] } // want Suit:`enumMembers\(Diamonds,Hearts,Spades\)`
+type Suit struct{ enum.StringEnum[Suit] } // want Suit:`enumMembers\(Diamonds,Hearts,Spades; diamonds,hearts,spades\)`
 
-type Color struct{ enum.IntEnum[Color] } // want Color:`enumMembers\(Blue,Green,Red\)`
+type Color struct{ enum.IntEnum[Color] } // want Color:`enumMembers\(Blue,Green,Red; 0,1,2\)`
 
 // --- Rule 1 violations ---
 
