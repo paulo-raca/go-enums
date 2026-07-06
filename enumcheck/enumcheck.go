@@ -8,8 +8,9 @@
 //     that one base and nothing else, parameterised by itself
 //     (type Suit struct{ enum.StringEnum[Suit] }).
 //  2. Member declaration. enum.New / enum.NextInt may only appear as the direct
-//     initialiser of a package-level var, that var may not be reassigned, and
-//     members must be declared in the enum type's own package.
+//     initialiser of a package-level var, that var may not be reassigned,
+//     members must be declared in the enum type's own package, and enum.New's
+//     value argument must be a compile-time constant.
 //  3. Switch exhaustiveness. In a switch over an enum type, every case must name
 //     a member of that enum, and either all members are covered or a default
 //     clause is present.
@@ -161,7 +162,10 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 
 	// --- Rule 2 (placement): every New/NextInt call must be a top-level init,
-	// and must target an enum type from this same package. ---
+	// and must target an enum type from this same package. New's value argument
+	// must also be a compile-time constant, so the whole member set is knowable
+	// at analysis time (which the exhaustiveness and, later, cast-site rules
+	// depend on). ---
 	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
 		ce := n.(*ast.CallExpr)
 		got, fnName, arg := newCall(pass, ce)
@@ -174,6 +178,9 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 		if named, ok := arg.(*types.Named); ok && named.Obj().Pkg() != pass.Pkg {
 			pass.Reportf(ce.Pos(), "enum members of %s must be declared in its own package", rel(arg))
+		}
+		if fnName == "New" && len(ce.Args) > 0 && pass.TypesInfo.Types[ce.Args[0]].Value == nil {
+			pass.Reportf(ce.Args[0].Pos(), "enum.New value must be a compile-time constant")
 		}
 	})
 

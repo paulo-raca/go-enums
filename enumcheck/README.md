@@ -56,8 +56,14 @@ linters:
    `Self` are reported.
 2. **Member declaration.** `enum.New` / `enum.NextInt` may appear only as the
    direct initialiser of a package-level `var`; member vars may not be
-   reassigned; and members must be declared in the enum type's own package
-   (so the set is complete and statically enumerable).
+   reassigned; members must be declared in the enum type's own package; and
+   `enum.New`'s value argument must be a compile-time constant (so the whole
+   set is knowable at analysis time).
+
+```go
+var opaque = "runtime-decided"
+var Bad = enum.New[Suit](opaque) // enumcheck: enum.New value must be a compile-time constant
+```
 3. **Switch exhaustiveness.** In a `switch` over an enum type, every case must
    name a member of that enum, and either all members are covered or a `default`
    clause is present. Works across packages via analysis facts.

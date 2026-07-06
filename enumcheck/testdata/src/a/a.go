@@ -58,6 +58,37 @@ func reassign() {
 	Hearts = Spades // want `enum member Hearts must not be reassigned`
 }
 
+// --- Rule 2 (constant argument) ---
+
+// Dyn is a small string enum used to pin the constant-arg check without
+// touching Suit's fact assertions above.
+type Dyn struct{ enum.StringEnum[Dyn] } // want Dyn:`enumMembers\(DynBad,DynConst,DynFolded\)`
+
+var runtimeStr = "runtime-decided"
+
+var (
+	DynBad    = enum.New[Dyn](runtimeStr) // want `enum\.New value must be a compile-time constant`
+	DynConst  = enum.New[Dyn]("ok")
+	DynFolded = enum.New[Dyn]("fol" + "ded") // constant-folded literal is fine
+)
+
+// Constants (typed or not) are compile-time constants and pass the check.
+const dynConstArg = "cst"
+
+type DynFromConst struct{ enum.StringEnum[DynFromConst] } // want DynFromConst:`enumMembers\(DynFromConstOK\)`
+
+var DynFromConstOK = enum.New[DynFromConst](dynConstArg)
+
+// DynInt exercises the same rule on the int-backed base.
+type DynInt struct{ enum.IntEnum[DynInt] } // want DynInt:`enumMembers\(DynIntBad,DynIntConst\)`
+
+var runtimeInt = 7
+
+var (
+	DynIntBad   = enum.New[DynInt](runtimeInt) // want `enum\.New value must be a compile-time constant`
+	DynIntConst = enum.New[DynInt](3)
+)
+
 // --- Rule 3: switches ---
 
 func exhaustive(s Suit) string {
