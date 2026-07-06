@@ -2,7 +2,7 @@
 // invariants of github.com/paulo-raca/go-enums/enum and, in particular, checks
 // that switch statements over an enum type are exhaustive.
 //
-// It enforces three rules:
+// It enforces four rules:
 //
 //  1. Enum shape. A type that embeds enum.StringEnum/IntEnum must embed exactly
 //     that one base and nothing else, parameterised by itself
@@ -14,13 +14,19 @@
 //  3. Switch exhaustiveness. In a switch over an enum type, every case must name
 //     a member of that enum, and either all members are covered or a default
 //     clause is present.
+//  4. Cast value sets. A call to enum.LookupAs / enum.As / enum.MustAs (or an
+//     enum.SameValues assertion) between two enum types whose statically-known
+//     backing value sets are not exactly equal is flagged, since some members
+//     could not survive the cast.
 package enumcheck
 
 import (
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"sort"
+	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -33,12 +39,25 @@ import (
 const enumPkgPath = "github.com/paulo-raca/go-enums/enum"
 
 // membersFact records, on an enum type's TypeName object, the names of its
-// member vars so switches in other packages can be checked.
-type membersFact struct{ Names []string }
+// member vars (so switches in other packages can be checked) plus the base
+// kind and the statically-computed backing values (so cast sites can compare
+// value sets across packages). Complete is false when some member's value is
+// not a compile-time constant, in which case Values is unusable and cast-site
+// checks involving the type are skipped.
+type membersFact struct {
+	Names    []string // sorted member var names
+	Kind     string   // "StringEnum" or "IntEnum"
+	Values   []string // sorted backing values (decimal for IntEnum)
+	Complete bool
+}
 
 func (*membersFact) AFact() {}
 func (f *membersFact) String() string {
-	return "enumMembers(" + strings.Join(f.Names, ",") + ")"
+	s := "enumMembers(" + strings.Join(f.Names, ",")
+	if !f.Complete {
+		return s + "; values unknown)"
+	}
+	return s + "; " + strings.Join(f.Values, ",") + ")"
 }
 
 var Analyzer = &analysis.Analyzer{
@@ -57,6 +76,7 @@ func run(pass *analysis.Pass) (any, error) {
 	// --- Rule 1: identify (and validate) enum types defined in this package. ---
 	localEnum := map[*types.TypeName]bool{}
 	members := map[*types.TypeName][]string{}
+	kinds := map[*types.TypeName]string{}
 	scope := pass.Pkg.Scope()
 	for _, name := range scope.Names() {
 		tn, ok := scope.Lookup(name).(*types.TypeName)
@@ -86,12 +106,21 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 		localEnum[tn] = true
 		members[tn] = nil
+		kinds[tn] = kind
 	}
 
-	// --- Rule 2 (gather): members are top-level vars initialised by New/NextInt. ---
+	// --- Rule 2 (gather): members are top-level vars initialised by New/NextInt.
+	// Files are walked in name order — the runtime's package initialisation order
+	// — so the NextInt simulation below hands out the same values the runtime
+	// counter would (next = max so far + 1, or 0 before any int member exists). ---
+	files := append([]*ast.File(nil), pass.Files...)
+	sort.Slice(files, func(i, j int) bool {
+		return pass.Fset.Position(files[i].Package).Filename < pass.Fset.Position(files[j].Package).Filename
+	})
 	goodInit := map[*ast.CallExpr]bool{}
 	memberVars := map[*types.Var]bool{}
-	for _, f := range pass.Files {
+	vals := map[*types.TypeName]*valueState{}
+	for _, f := range files {
 		for _, d := range f.Decls {
 			gd, ok := d.(*ast.GenDecl)
 			if !ok || gd.Tok != token.VAR {
@@ -103,7 +132,7 @@ func run(pass *analysis.Pass) (any, error) {
 					if i >= len(vs.Values) {
 						continue
 					}
-					ce, _, arg := newCall(pass, vs.Values[i])
+					ce, fnName, arg := newCall(pass, vs.Values[i])
 					if ce == nil {
 						continue
 					}
@@ -116,29 +145,52 @@ func run(pass *analysis.Pass) (any, error) {
 						memberVars[v] = true
 						members[tn] = append(members[tn], nameIdent.Name)
 					}
+					st := vals[tn]
+					if st == nil {
+						st = &valueState{}
+						vals[tn] = st
+					}
+					st.record(pass, fnName, ce, kinds[tn])
 				}
 			}
 		}
 	}
 
-	// Export member sets so switches in importing packages can be checked.
+	// Export member sets so switches (and cast sites) in importing packages can
+	// be checked.
+	localFacts := map[*types.TypeName]*membersFact{}
 	for tn := range localEnum {
 		names := append([]string(nil), members[tn]...)
 		sort.Strings(names)
-		pass.ExportObjectFact(tn, &membersFact{Names: names})
+		f := &membersFact{Names: names, Kind: kinds[tn], Complete: true}
+		if st := vals[tn]; st != nil {
+			f.Complete = !st.incomplete
+			if f.Complete {
+				f.Values = append([]string(nil), st.values...)
+				sortValues(f.Values, f.Kind)
+			}
+		}
+		localFacts[tn] = f
+		pass.ExportObjectFact(tn, f)
 	}
 
-	lookupMembers := func(tn *types.TypeName) ([]string, bool) {
-		if localEnum[tn] {
-			names := append([]string(nil), members[tn]...)
-			sort.Strings(names)
-			return names, true
+	lookupFact := func(tn *types.TypeName) (*membersFact, bool) {
+		if f, ok := localFacts[tn]; ok {
+			return f, true
 		}
 		var f membersFact
 		if pass.ImportObjectFact(tn, &f) {
-			return f.Names, true
+			return &f, true
 		}
 		return nil, false
+	}
+
+	lookupMembers := func(tn *types.TypeName) ([]string, bool) {
+		f, ok := lookupFact(tn)
+		if !ok {
+			return nil, false
+		}
+		return f.Names, true
 	}
 
 	// isMember reports whether v is a package-level enum member var.
@@ -244,7 +296,163 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	})
 
+	// --- Rule 4: casts require exactly equal value sets. ---
+	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
+		ce := n.(*ast.CallExpr)
+		fnName, targs := castCall(pass, ce)
+		if fnName == "" {
+			return
+		}
+		var fromT, toT types.Type
+		switch fnName {
+		case "SameValues": // SameValues[A, B]()
+			if targs.Len() < 2 {
+				return
+			}
+			fromT, toT = targs.At(0), targs.At(1)
+		default: // LookupAs/As/MustAs[To, V, From, PTo]
+			if targs.Len() < 3 {
+				return
+			}
+			toT, fromT = targs.At(0), targs.At(2)
+		}
+		fromN, okFrom := fromT.(*types.Named)
+		toN, okTo := toT.(*types.Named)
+		if !okFrom || !okTo {
+			return
+		}
+		fromFact, ok := lookupFact(fromN.Obj())
+		if !ok {
+			return
+		}
+		toFact, ok := lookupFact(toN.Obj())
+		if !ok {
+			return
+		}
+		if fromFact.Kind != toFact.Kind {
+			// Only reachable via SameValues — the get/set constraints make a
+			// cross-kind LookupAs/As/MustAs a compile error.
+			pass.Reportf(ce.Pos(), "%s and %s can never have the same values: one is string-backed, the other int-backed", rel(fromT), rel(toT))
+			return
+		}
+		if !fromFact.Complete || !toFact.Complete {
+			return // some member value is not statically known; nothing to compare
+		}
+		onlyFrom := setDiff(fromFact.Values, toFact.Values)
+		onlyTo := setDiff(toFact.Values, fromFact.Values)
+		if len(onlyFrom) == 0 && len(onlyTo) == 0 {
+			return
+		}
+		var msg string
+		if fnName == "SameValues" {
+			msg = "value sets of " + rel(fromT) + " and " + rel(toT) + " differ"
+		} else {
+			msg = "cannot cast " + rel(fromT) + " to " + rel(toT) + ": value sets differ"
+		}
+		if len(onlyFrom) > 0 {
+			msg += "; only in " + rel(fromT) + ": " + fmtValues(onlyFrom, fromFact.Kind)
+		}
+		if len(onlyTo) > 0 {
+			msg += "; only in " + rel(toT) + ": " + fmtValues(onlyTo, toFact.Kind)
+		}
+		pass.Reportf(ce.Pos(), "%s", msg)
+	})
+
 	return nil, nil
+}
+
+// valueState accumulates an enum type's backing values while member decls are
+// walked in initialisation order, mirroring the runtime NextInt counter.
+type valueState struct {
+	values     []string
+	incomplete bool // some value is not a compile-time constant
+	anyInt     bool
+	maxInt     int64
+}
+
+func (st *valueState) record(pass *analysis.Pass, fnName string, ce *ast.CallExpr, kind string) {
+	switch fnName {
+	case "NextInt":
+		n := int64(0)
+		if st.anyInt {
+			n = st.maxInt + 1
+		}
+		st.addInt(n)
+	case "New":
+		if len(ce.Args) == 0 {
+			st.incomplete = true
+			return
+		}
+		v := pass.TypesInfo.Types[ce.Args[0]].Value
+		if v == nil {
+			st.incomplete = true
+			return
+		}
+		if kind == "IntEnum" {
+			n, ok := constant.Int64Val(constant.ToInt(v))
+			if !ok {
+				st.incomplete = true
+				return
+			}
+			st.addInt(n)
+		} else {
+			if v.Kind() != constant.String {
+				st.incomplete = true
+				return
+			}
+			st.values = append(st.values, constant.StringVal(v))
+		}
+	}
+}
+
+func (st *valueState) addInt(n int64) {
+	st.values = append(st.values, strconv.FormatInt(n, 10))
+	if !st.anyInt || n > st.maxInt {
+		st.maxInt = n
+	}
+	st.anyInt = true
+}
+
+// sortValues orders a value set canonically: numerically for int enums (the
+// values are decimal renderings), lexicographically for string enums.
+func sortValues(vals []string, kind string) {
+	if kind == "IntEnum" {
+		sort.Slice(vals, func(i, j int) bool {
+			a, _ := strconv.ParseInt(vals[i], 10, 64)
+			b, _ := strconv.ParseInt(vals[j], 10, 64)
+			return a < b
+		})
+		return
+	}
+	sort.Strings(vals)
+}
+
+// setDiff returns the elements of a not present in b, preserving a's order.
+func setDiff(a, b []string) []string {
+	in := make(map[string]bool, len(b))
+	for _, v := range b {
+		in[v] = true
+	}
+	var out []string
+	for _, v := range a {
+		if !in[v] {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// fmtValues renders a value list for a diagnostic: quoted for string enums,
+// bare decimal for int enums.
+func fmtValues(vals []string, kind string) string {
+	if kind != "IntEnum" {
+		quoted := make([]string, len(vals))
+		for i, v := range vals {
+			quoted[i] = strconv.Quote(v)
+		}
+		vals = quoted
+	}
+	return strings.Join(vals, ", ")
 }
 
 // enumBase finds the first field of st whose type is enum.StringEnum/IntEnum and
@@ -270,13 +478,10 @@ func enumBase(st *types.Struct) (idx int, arg types.Type, kind string) {
 	return 0, nil, ""
 }
 
-// newCall reports whether e is a call to enum.New or enum.NextInt, returning the
-// call expression, the function name, and the first type argument (the enum type).
-func newCall(pass *analysis.Pass, e ast.Expr) (*ast.CallExpr, string, types.Type) {
-	ce, ok := astutil.Unparen(e).(*ast.CallExpr)
-	if !ok {
-		return nil, "", nil
-	}
+// enumFunc resolves ce's callee to a function of the enum package, returning
+// the function object and the identifier carrying its instantiation (both nil
+// when the call is something else).
+func enumFunc(pass *analysis.Pass, ce *ast.CallExpr) (*types.Func, *ast.Ident) {
 	fun := astutil.Unparen(ce.Fun)
 	switch f := fun.(type) {
 	case *ast.IndexExpr:
@@ -291,13 +496,24 @@ func newCall(pass *analysis.Pass, e ast.Expr) (*ast.CallExpr, string, types.Type
 	case *ast.Ident:
 		id = f
 	default:
-		return nil, "", nil
+		return nil, nil
 	}
 	fn, ok := pass.TypesInfo.Uses[id].(*types.Func)
 	if !ok || fn.Pkg() == nil || fn.Pkg().Path() != enumPkgPath {
+		return nil, nil
+	}
+	return fn, id
+}
+
+// newCall reports whether e is a call to enum.New or enum.NextInt, returning the
+// call expression, the function name, and the first type argument (the enum type).
+func newCall(pass *analysis.Pass, e ast.Expr) (*ast.CallExpr, string, types.Type) {
+	ce, ok := astutil.Unparen(e).(*ast.CallExpr)
+	if !ok {
 		return nil, "", nil
 	}
-	if fn.Name() != "New" && fn.Name() != "NextInt" {
+	fn, id := enumFunc(pass, ce)
+	if fn == nil || (fn.Name() != "New" && fn.Name() != "NextInt") {
 		return nil, "", nil
 	}
 	var arg types.Type
@@ -305,6 +521,26 @@ func newCall(pass *analysis.Pass, e ast.Expr) (*ast.CallExpr, string, types.Type
 		arg = inst.TypeArgs.At(0)
 	}
 	return ce, fn.Name(), arg
+}
+
+// castCall reports whether ce is a call to one of the cast-family functions
+// (enum.LookupAs/As/MustAs/SameValues), returning the function name and its
+// full instantiated type-argument list ("" when it is something else).
+func castCall(pass *analysis.Pass, ce *ast.CallExpr) (string, *types.TypeList) {
+	fn, id := enumFunc(pass, ce)
+	if fn == nil {
+		return "", nil
+	}
+	switch fn.Name() {
+	case "LookupAs", "As", "MustAs", "SameValues":
+	default:
+		return "", nil
+	}
+	inst := pass.TypesInfo.Instances[id]
+	if inst.TypeArgs == nil {
+		return "", nil
+	}
+	return fn.Name(), inst.TypeArgs
 }
 
 // varOf resolves e (an identifier or selector) to the var it refers to, or nil.

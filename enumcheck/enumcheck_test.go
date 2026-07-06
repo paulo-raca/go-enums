@@ -8,5 +8,5 @@ import (
 )
 
 func TestEnumcheck(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), enumcheck.Analyzer, "a", "b")
+	analysistest.Run(t, analysistest.TestData(), enumcheck.Analyzer, "a", "b", "c", "d")
 }

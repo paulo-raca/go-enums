@@ -546,3 +546,120 @@ func TestTags(t *testing.T) {
 	require.Empty(t, enum.ValuesWithTag[Suit](GroupA))
 	require.False(t, Hearts.HasTag(GroupA))
 }
+
+// --- casting between parallel enums --------------------------------------
+
+// ApiSuit mirrors Suit exactly — the "same enum, different codegen" scenario.
+type ApiSuit struct{ enum.StringEnum[ApiSuit] }
+
+var (
+	ApiHearts   = enum.New[ApiSuit]("hearts")
+	ApiDiamonds = enum.New[ApiSuit]("diamonds")
+	ApiSpades   = enum.New[ApiSuit]("spades")
+)
+
+// PartialSuit is missing "spades", so casts of Spades into it miss.
+type PartialSuit struct{ enum.StringEnum[PartialSuit] }
+
+var (
+	PartialHearts   = enum.New[PartialSuit]("hearts")
+	PartialDiamonds = enum.New[PartialSuit]("diamonds")
+)
+
+// ApiColor mirrors Color (0, 1, 2) for the int-backed cast path.
+type ApiColor struct{ enum.IntEnum[ApiColor] }
+
+var (
+	ApiRed   = enum.NextInt[ApiColor]() // 0
+	ApiGreen = enum.NextInt[ApiColor]() // 1
+	ApiBlue  = enum.NextInt[ApiColor]() // 2
+)
+
+func TestLookupAs(t *testing.T) {
+	got, ok := enum.LookupAs[ApiSuit](Diamonds)
+	require.True(t, ok)
+	require.Equal(t, ApiDiamonds, got)
+	require.Equal(t, 1, got.Index(), "Index must come from the target registry")
+
+	// Round-trip back to the source type.
+	back, ok := enum.LookupAs[Suit](got)
+	require.True(t, ok)
+	require.Equal(t, Diamonds, back)
+
+	// Int-backed enums cast by int value.
+	c, ok := enum.LookupAs[ApiColor](Green)
+	require.True(t, ok)
+	require.Equal(t, ApiGreen, c)
+
+	// A value missing in the target misses.
+	_, ok = enum.LookupAs[PartialSuit](Spades)
+	require.False(t, ok)
+
+	// The zero value casts to the zero value ("unset" travels).
+	z, ok := enum.LookupAs[ApiSuit](Suit{})
+	require.True(t, ok)
+	require.True(t, z.IsZero())
+}
+
+func TestAs(t *testing.T) {
+	got, err := enum.As[ApiSuit](Hearts)
+	require.NoError(t, err)
+	require.Equal(t, ApiHearts, got)
+
+	c, err := enum.As[ApiColor](Blue)
+	require.NoError(t, err)
+	require.Equal(t, ApiBlue, c)
+
+	z, err := enum.As[ApiSuit](Suit{})
+	require.NoError(t, err)
+	require.True(t, z.IsZero())
+
+	// A miss is an *InvalidValueError[To] carrying the offending value.
+	_, err = enum.As[PartialSuit](Spades)
+	var ive *enum.InvalidValueError[PartialSuit]
+	require.ErrorAs(t, err, &ive)
+	require.Equal(t, "spades", ive.Value)
+}
+
+func TestMustAs(t *testing.T) {
+	require.Equal(t, ApiSpades, enum.MustAs[ApiSuit](Spades))
+	require.Equal(t, ApiRed, enum.MustAs[ApiColor](Red))
+	require.True(t, enum.MustAs[ApiSuit](Suit{}).IsZero())
+
+	require.Panics(t, func() { _ = enum.MustAs[PartialSuit](Spades) })
+
+	// The panic value is the typed *InvalidValueError[To].
+	var ive *enum.InvalidValueError[PartialSuit]
+	func() {
+		defer func() {
+			err, _ := recover().(error)
+			require.ErrorAs(t, err, &ive)
+		}()
+		_ = enum.MustAs[PartialSuit](Spades)
+	}()
+	require.Equal(t, "spades", ive.Value)
+}
+
+func TestSameValues(t *testing.T) {
+	// Exactly equal sets, both kinds.
+	require.NoError(t, enum.SameValues[Suit, ApiSuit]())
+	require.NoError(t, enum.SameValues[Color, ApiColor]())
+	require.NoError(t, enum.SameValues[Suit, Suit]())
+
+	// Subset: the missing value is reported on the right side.
+	err := enum.SameValues[Suit, PartialSuit]()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `"spades"`)
+	require.Contains(t, err.Error(), "only in enum_test.Suit")
+
+	// Symmetric: also reported when the larger set is on the right.
+	err = enum.SameValues[PartialSuit, Suit]()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "only in enum_test.Suit")
+
+	// Disjoint kinds are an error, not "different sets".
+	err = enum.SameValues[Suit, Color]()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "string-backed")
+	require.Contains(t, err.Error(), "int-backed")
+}

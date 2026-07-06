@@ -4,9 +4,9 @@ import "github.com/paulo-raca/go-enums/enum"
 
 // --- valid enum types ---
 
-type Suit struct{ enum.StringEnum[Suit] } // want Suit:`enumMembers\(Diamonds,Hearts,Spades\)`
+type Suit struct{ enum.StringEnum[Suit] } // want Suit:`enumMembers\(Diamonds,Hearts,Spades; diamonds,hearts,spades\)`
 
-type Color struct{ enum.IntEnum[Color] } // want Color:`enumMembers\(Blue,Green,Red\)`
+type Color struct{ enum.IntEnum[Color] } // want Color:`enumMembers\(Blue,Green,Red; 0,1,2\)`
 
 // --- Rule 1 violations ---
 
@@ -62,7 +62,7 @@ func reassign() {
 
 // Dyn is a small string enum used to pin the constant-arg check without
 // touching Suit's fact assertions above.
-type Dyn struct{ enum.StringEnum[Dyn] } // want Dyn:`enumMembers\(DynBad,DynConst,DynFolded\)`
+type Dyn struct{ enum.StringEnum[Dyn] } // want Dyn:`enumMembers\(DynBad,DynConst,DynFolded; values unknown\)`
 
 var runtimeStr = "runtime-decided"
 
@@ -75,12 +75,12 @@ var (
 // Constants (typed or not) are compile-time constants and pass the check.
 const dynConstArg = "cst"
 
-type DynFromConst struct{ enum.StringEnum[DynFromConst] } // want DynFromConst:`enumMembers\(DynFromConstOK\)`
+type DynFromConst struct{ enum.StringEnum[DynFromConst] } // want DynFromConst:`enumMembers\(DynFromConstOK; cst\)`
 
 var DynFromConstOK = enum.New[DynFromConst](dynConstArg)
 
 // DynInt exercises the same rule on the int-backed base.
-type DynInt struct{ enum.IntEnum[DynInt] } // want DynInt:`enumMembers\(DynIntBad,DynIntConst\)`
+type DynInt struct{ enum.IntEnum[DynInt] } // want DynInt:`enumMembers\(DynIntBad,DynIntConst; values unknown\)`
 
 var runtimeInt = 7
 

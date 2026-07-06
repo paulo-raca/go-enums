@@ -89,6 +89,9 @@ func (e IntEnum[T]) Value() (driver.Value, error) {
 // with StringEnum's set(string) so a single New serves both.
 func (e *IntEnum[T]) set(n int) { e.val = n }
 
+// get is the unexported value read path; see StringEnum.get.
+func (e IntEnum[T]) get() int { return e.val }
+
 // setIndex records the 1-based registration position; see StringEnum.setIndex.
 func (e *IntEnum[T]) setIndex(p int) { e.index = p }
 

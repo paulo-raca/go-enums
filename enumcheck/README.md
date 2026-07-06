@@ -80,6 +80,17 @@ func describe(s Suit) string {
 }
 ```
 
+4. **Cast value sets.** A call to `enum.LookupAs` / `enum.As` / `enum.MustAs`
+   (or an `enum.SameValues` assertion) between two enum types whose statically
+   known backing value sets are not exactly equal is flagged, naming the values
+   present on only one side. Works across packages via analysis facts. If a
+   member is constructed with a non-constant argument, the check is skipped for
+   that type (its value set can't be computed at analysis time).
+
+```go
+enum.MustAs[PartialSuit](sqlHearts) // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+```
+
 ## Limitations
 
 - Members must be created in the type's defining package (rule 2); members
