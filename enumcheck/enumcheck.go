@@ -2,7 +2,7 @@
 // invariants of github.com/paulo-raca/go-enums/enum and, in particular, checks
 // that switch statements over an enum type are exhaustive.
 //
-// It enforces three rules:
+// It enforces four rules:
 //
 //  1. Enum shape. A type that embeds enum.StringEnum/IntEnum must embed exactly
 //     that one base and nothing else, parameterised by itself

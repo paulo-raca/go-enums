@@ -56,13 +56,15 @@ var (
 	DiffBlue  = enum.New[DifferentColor](30)
 )
 
-// --- Non-constant value: cast checks involving OpaqueSuit are skipped ---
+// --- Non-constant value: rule 2 flags the New call, and cast-site checks
+// (rule 4) degrade gracefully by skipping this type — belt-and-suspenders for
+// anyone who suppresses rule 2's diagnostic. ---
 
 var opaque = "runtime-decided"
 
 type OpaqueSuit struct{ enum.StringEnum[OpaqueSuit] } // want OpaqueSuit:`enumMembers\(OpaqueHearts; values unknown\)`
 
-var OpaqueHearts = enum.New[OpaqueSuit](opaque)
+var OpaqueHearts = enum.New[OpaqueSuit](opaque) // want `enum\.New value must be a compile-time constant`
 
 func casts() {
 	// Equal sets: no diagnostic on any of the cast forms.
