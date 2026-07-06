@@ -513,8 +513,7 @@ func SameValues[A, B Enum]() error {
 		}
 		return fmt.Errorf("enum: %T is %s-backed but %T is %s-backed", zeroA, kind(aInts), zeroB, kind(bInts))
 	}
-	onlyA := diffSorted(aVals, bVals)
-	onlyB := diffSorted(bVals, aVals)
+	onlyA, onlyB := symDiff(aVals, bVals)
 	if len(onlyA) == 0 && len(onlyB) == 0 {
 		return nil
 	}
@@ -552,15 +551,23 @@ func valueSet[T Enum]() (vals []string, isInt bool) {
 	return vals, isInt
 }
 
-// diffSorted returns the elements of a that are not in b; both inputs sorted.
-func diffSorted(a, b []string) []string {
-	var out []string
-	for _, v := range a {
-		if _, ok := slices.BinarySearch(b, v); !ok {
-			out = append(out, v)
+// symDiff returns the elements only in a and only in b, in one linear pass
+// over the sorted inputs (equivalent to lo.Difference for pre-sorted slices,
+// without the dependency).
+func symDiff(a, b []string) (onlyA, onlyB []string) {
+	for len(a) > 0 && len(b) > 0 {
+		switch {
+		case a[0] < b[0]:
+			onlyA = append(onlyA, a[0])
+			a = a[1:]
+		case a[0] > b[0]:
+			onlyB = append(onlyB, b[0])
+			b = b[1:]
+		default:
+			a, b = a[1:], b[1:]
 		}
 	}
-	return out
+	return append(onlyA, a...), append(onlyB, b...)
 }
 
 // resolve is the unconstrained resolver shared by Lookup, Parse, Valid, and the
