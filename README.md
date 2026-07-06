@@ -227,8 +227,9 @@ keep the member set statically knowable in the first place.
    base, or a mismatched `Self` (`enum.StringEnum[Other]`) are flagged.
 2. **Member declaration** — `enum.New` / `enum.NextInt` may appear only as the
    direct initialiser of a package-level `var`; member vars may not be
-   reassigned; and members must be declared in the enum type's own package
-   (so the set is complete and statically enumerable).
+   reassigned; members must be declared in the enum type's own package; and
+   `enum.New`'s value argument must be a compile-time constant (so the whole
+   set is knowable at analysis time).
 3. **Switch exhaustiveness** — in a `switch` over an enum type, every case must
    name a member of that enum, and either all members are covered or a `default`
    clause is present. Works across packages (member sets travel via analysis
