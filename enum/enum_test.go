@@ -69,16 +69,16 @@ func TestStringBasics(t *testing.T) {
 	var zero Suit
 	require.False(t, zero.IsValid(), "zero value must not be valid")
 
-	got, ok := enum.Lookup[Suit]("spades")
+	got, ok := enum.TryParse[Suit]("spades")
 	require.True(t, ok)
 	require.Equal(t, Spades, got)
 
-	_, ok = enum.Lookup[Suit]("nope")
+	_, ok = enum.TryParse[Suit]("nope")
 	require.False(t, ok, "unknown string must miss")
 
-	// package-level Valid takes the backing value, not the member.
-	require.True(t, enum.Valid[Suit]("hearts"))
-	require.False(t, enum.Valid[Suit]("nope"))
+	// package-level Contains takes the backing value, not the member.
+	require.True(t, enum.Contains[Suit]("hearts"))
+	require.False(t, enum.Contains[Suit]("nope"))
 }
 
 func TestStringValuesOrder(t *testing.T) {
@@ -251,16 +251,16 @@ func TestDuplicateRegistrationPanics(t *testing.T) {
 }
 
 func TestIntLookup(t *testing.T) {
-	got, ok := enum.Lookup[Color](1)
+	got, ok := enum.TryParse[Color](1)
 	require.True(t, ok)
 	require.Equal(t, Green, got)
 
-	_, ok = enum.Lookup[Color](99)
+	_, ok = enum.TryParse[Color](99)
 	require.False(t, ok, "unknown int must miss")
 
 	require.True(t, Blue.IsValid())
-	require.True(t, enum.Valid[Color](2))
-	require.False(t, enum.Valid[Color](99))
+	require.True(t, enum.Contains[Color](2))
+	require.False(t, enum.Contains[Color](99))
 }
 
 func TestIntJSONIsNumber(t *testing.T) {
@@ -575,58 +575,58 @@ var (
 	ApiBlue  = enum.NextInt[ApiColor]() // 2
 )
 
-func TestLookupAs(t *testing.T) {
-	got, ok := enum.LookupAs[ApiSuit](Diamonds)
+func TestTryAs(t *testing.T) {
+	got, ok := Diamonds.TryAs[ApiSuit]()
 	require.True(t, ok)
 	require.Equal(t, ApiDiamonds, got)
 	require.Equal(t, 1, got.Index(), "Index must come from the target registry")
 
 	// Round-trip back to the source type.
-	back, ok := enum.LookupAs[Suit](got)
+	back, ok := got.TryAs[Suit]()
 	require.True(t, ok)
 	require.Equal(t, Diamonds, back)
 
 	// Int-backed enums cast by int value.
-	c, ok := enum.LookupAs[ApiColor](Green)
+	c, ok := Green.TryAs[ApiColor]()
 	require.True(t, ok)
 	require.Equal(t, ApiGreen, c)
 
 	// A value missing in the target misses.
-	_, ok = enum.LookupAs[PartialSuit](Spades)
+	_, ok = Spades.TryAs[PartialSuit]()
 	require.False(t, ok)
 
 	// The zero value casts to the zero value ("unset" travels).
-	z, ok := enum.LookupAs[ApiSuit](Suit{})
+	z, ok := Suit{}.TryAs[ApiSuit]()
 	require.True(t, ok)
 	require.True(t, z.IsZero())
 }
 
 func TestAs(t *testing.T) {
-	got, err := enum.As[ApiSuit](Hearts)
+	got, err := Hearts.As[ApiSuit]()
 	require.NoError(t, err)
 	require.Equal(t, ApiHearts, got)
 
-	c, err := enum.As[ApiColor](Blue)
+	c, err := Blue.As[ApiColor]()
 	require.NoError(t, err)
 	require.Equal(t, ApiBlue, c)
 
-	z, err := enum.As[ApiSuit](Suit{})
+	z, err := Suit{}.As[ApiSuit]()
 	require.NoError(t, err)
 	require.True(t, z.IsZero())
 
 	// A miss is an *InvalidValueError[To] carrying the offending value.
-	_, err = enum.As[PartialSuit](Spades)
+	_, err = Spades.As[PartialSuit]()
 	var ive *enum.InvalidValueError[PartialSuit]
 	require.ErrorAs(t, err, &ive)
 	require.Equal(t, "spades", ive.Value)
 }
 
 func TestMustAs(t *testing.T) {
-	require.Equal(t, ApiSpades, enum.MustAs[ApiSuit](Spades))
-	require.Equal(t, ApiRed, enum.MustAs[ApiColor](Red))
-	require.True(t, enum.MustAs[ApiSuit](Suit{}).IsZero())
+	require.Equal(t, ApiSpades, Spades.MustAs[ApiSuit]())
+	require.Equal(t, ApiRed, Red.MustAs[ApiColor]())
+	require.True(t, Suit{}.MustAs[ApiSuit]().IsZero())
 
-	require.Panics(t, func() { _ = enum.MustAs[PartialSuit](Spades) })
+	require.Panics(t, func() { _ = Spades.MustAs[PartialSuit]() })
 
 	// The panic value is the typed *InvalidValueError[To].
 	var ive *enum.InvalidValueError[PartialSuit]
@@ -635,9 +635,38 @@ func TestMustAs(t *testing.T) {
 			err, _ := recover().(error)
 			require.ErrorAs(t, err, &ive)
 		}()
-		_ = enum.MustAs[PartialSuit](Spades)
+		_ = Spades.MustAs[PartialSuit]()
 	}()
 	require.Equal(t, "spades", ive.Value)
+}
+
+// TestCastThroughPointer covers the addressable/pointer receiver shape. The
+// cast methods have value receivers, so they are in *T's method set too; this
+// is also the shape that made enumcheck's rule 4 need to unwrap *types.Pointer.
+func TestCastThroughPointer(t *testing.T) {
+	s := Diamonds
+	p := &s
+
+	got, ok := p.TryAs[ApiSuit]()
+	require.True(t, ok)
+	require.Equal(t, ApiDiamonds, got)
+
+	got2, err := p.As[ApiSuit]()
+	require.NoError(t, err)
+	require.Equal(t, ApiDiamonds, got2)
+
+	require.Equal(t, ApiDiamonds, p.MustAs[ApiSuit]())
+
+	// Int-backed, through a pointer, including a miss.
+	c := Green
+	pc := &c
+	gotc, ok := pc.TryAs[ApiColor]()
+	require.True(t, ok)
+	require.Equal(t, ApiGreen, gotc)
+
+	sp := Spades
+	_, ok = (&sp).TryAs[PartialSuit]()
+	require.False(t, ok)
 }
 
 func TestSameValues(t *testing.T) {

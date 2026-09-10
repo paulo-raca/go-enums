@@ -32,21 +32,23 @@
 //     registration order; -1 marks the zero value)
 //   - Compare() ordering members by Index — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
-//   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
-//     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
+//   - Values[T]() and Contains[T](v); plus three flavors of value lookup:
+//     TryParse[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
 //   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
 //     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
 //     member methods HasTag(tag)/Tags()
-//   - casting between parallel enums that share a backing kind: LookupAs[To]
-//     (T, bool), As[To] (T, error), MustAs[To] (T, panics) — the zero value
-//     casts to the zero value, a cross-kind cast (string<->int) is a compile
-//     error, and enumcheck flags casts whose static value sets differ.
+//   - casting between parallel enums that share a backing kind, as generic
+//     methods on the member: TryAs[To]() (T, bool), As[To]() (T, error),
+//     MustAs[To]() (T, panics) — the zero value casts to the zero value, a
+//     cross-kind cast (string<->int) is a compile error, and enumcheck flags
+//     casts whose static value sets differ.
 //   - SameValues[A, B]() error asserts at runtime that two enum types have the
 //     exact same backing values — the runtime companion to that static check.
 //
 // A constructed member is always distinct from the zero value — even one backed
-// by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
-// Valid). The zero value renders as "<invalid T>" (e.g. "<invalid Suit>") from
+// by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with ==,
+// IsZero, or IsValid). The zero value renders as "<invalid T>" (e.g.
+// "<invalid Suit>") from
 // String and is refused by the Marshal methods (its "" / 0 output would not
 // round-trip).
 //
@@ -60,7 +62,7 @@
 // mutex-guarded, so concurrent reads and runtime registration are safe, though
 // registration is normally an init-time var-block affair.
 //
-// Requires Go 1.24+.
+// Requires Go 1.27+ (the cast methods are generic methods).
 package enum
 
 import (
@@ -120,8 +122,8 @@ func (e *ZeroMarshalError[T]) Error() string {
 // names/ints depending on its base, never both.
 type bucket struct {
 	order      []any          // members in registration order, for Values
-	names      map[string]any // value -> member, for Lookup/Valid + dedup (StringEnum only)
-	ints       map[int]any    // value -> member, for Lookup/Valid + dedup (IntEnum only)
+	names      map[string]any // value -> member, for TryParse/Contains + dedup (StringEnum only)
+	ints       map[int]any    // value -> member, for TryParse/Contains + dedup (IntEnum only)
 	maxInt     int            // highest value seen so far (IntEnum only)
 	tagsBySlot [][]any        // tags per member, parallel to order (slot = Index)
 }
@@ -355,16 +357,17 @@ func Values[T Enum]() []T {
 	return out
 }
 
-// Valid reports whether the backing value v names a registered member of T. As
-// with New and Lookup, v is a string for a StringEnum or an int for an
-// IntEnum, and the set(V) constraint makes a wrong type a compile error:
+// Contains reports whether the backing value v names a registered member of T
+// — the membership test over the set Values[T]() enumerates. As with New and
+// TryParse, v is a string for a StringEnum or an int for an IntEnum, and the
+// set(V) constraint makes a wrong type a compile error:
 //
-//	enum.Valid[Suit]("hearts") // true
-//	enum.Valid[Color](2)       // true
+//	enum.Contains[Suit]("hearts") // true
+//	enum.Contains[Color](2)       // true
 //
-// To test a member value itself (a constructed member vs the zero value), call
-// its IsValid method instead: v.IsValid().
-func Valid[T Enum, V any, PT interface {
+// It is TryParse with the member discarded; prefer TryParse when you want the
+// member itself, and Contains when a bool is all a condition needs.
+func Contains[T Enum, V any, PT interface {
 	*T
 	set(V)
 }](v V) bool {
@@ -372,17 +375,17 @@ func Valid[T Enum, V any, PT interface {
 	return ok
 }
 
-// Lookup resolves the backing value v to a registered member of T: a string
+// TryParse resolves the backing value v to a registered member of T: a string
 // for a StringEnum, or an int for an IntEnum:
 //
-//	s, ok := enum.Lookup[Suit]("hearts")
-//	c, ok := enum.Lookup[Color](2)
+//	s, ok := enum.TryParse[Suit]("hearts")
+//	c, ok := enum.TryParse[Color](2)
 //
 // V is inferred from the argument. The set(V) constraint ties V to T's backing
 // type exactly as New does, so passing the wrong type for a given enum — e.g.
-// enum.Lookup[Suit](5) or enum.Lookup[Color]("2") — is a compile error,
+// enum.TryParse[Suit](5) or enum.TryParse[Color]("2") — is a compile error,
 // not a runtime miss.
-func Lookup[T Enum, V any, PT interface {
+func TryParse[T Enum, V any, PT interface {
 	*T
 	set(V)
 }](v V) (T, bool) {
@@ -390,7 +393,7 @@ func Lookup[T Enum, V any, PT interface {
 }
 
 // Parse resolves the backing value v to a registered member of T. Same dispatch
-// as Lookup, but returns *InvalidValueError[T] instead of (T, bool) — so the
+// as TryParse, but returns *InvalidValueError[T] instead of (T, bool) — so the
 // common callsite ("look up, return err with %w") composes with errors.As and
 // the existing typed-error machinery.
 //
@@ -423,73 +426,30 @@ func MustParse[T Enum, V any, PT interface {
 	return m
 }
 
-// LookupAs casts a member of one enum type to the member of To backed by the
-// same value — for the parallel enums that accumulate in real projects (the
-// sqlboiler one, the OpenAPI one, the business-model one), which represent the
-// same set and should convert losslessly:
+// castTo is the shared cast implementation behind TryAs on both bases: it
+// resolves val against To's registry, treating the zero value (index 0) as
+// casting to the zero value of To, so "unset" travels across a cast.
 //
-//	api, ok := enum.LookupAs[OpenApiEnum](sqlEnum)
-//
-// Only To is named at the call site. The unexported get/set constraints tie
-// both enums to the same backing kind, so casting a string-backed enum to an
-// int-backed one (or vice versa) is a compile error, not a runtime miss.
-//
-// The zero value casts to the zero value: "unset" travels across the cast
-// (ok is true; IsZero holds for the result). A registered member whose value
-// names no member of To yields (zero, false) — and the enumcheck analyzer flags
-// cast sites between enums whose value sets are not exactly equal.
-//
-// LookupAs, As, and MustAs are the cast-flavored siblings of Lookup, Parse,
-// and MustParse.
-func LookupAs[To Enum, V any, From interface {
-	Enum
-	get() V
-}, PTo interface {
-	*To
-	set(V)
-}](from From) (To, bool) {
+// V is whatever the calling base is backed by; the compile-time guarantee that
+// To shares that backing kind comes from the *methods'* PTo constraint, not
+// from here — this helper only needs To and V to line up.
+func castTo[To Enum, V any](val V, index int) (To, bool) {
 	var zero To
-	if from.Index() < 0 {
+	if index == 0 {
 		return zero, true
 	}
-	return resolve[To](from.get())
+	return resolve[To](val)
 }
 
-// As is the error-returning flavor of LookupAs: a miss yields
-// *InvalidValueError[To], composing with %w and errors.As like Parse.
-//
-//	api, err := enum.As[OpenApiEnum](sqlEnum)
-func As[To Enum, V any, From interface {
-	Enum
-	get() V
-}, PTo interface {
-	*To
-	set(V)
-}](from From) (To, error) {
-	m, ok := LookupAs[To, V, From, PTo](from)
+// castErr is castTo with a miss turned into *InvalidValueError[To]; it backs As
+// and MustAs on both bases. Keeping it separate from castTo means the error
+// construction lives once rather than in four method bodies.
+func castErr[To Enum, V any](val V, index int) (To, error) {
+	m, ok := castTo[To, V](val, index)
 	if !ok {
-		return m, &InvalidValueError[To]{Value: fmt.Sprint(from.get())}
+		return m, &InvalidValueError[To]{Value: fmt.Sprint(val)}
 	}
 	return m, nil
-}
-
-// MustAs is the panicking sibling of As — for casts between enums whose value
-// sets are known to match (which the enumcheck analyzer can verify statically,
-// and SameValues can assert at runtime). Panics with *InvalidValueError[To].
-//
-//	api := enum.MustAs[OpenApiEnum](sqlEnum)
-func MustAs[To Enum, V any, From interface {
-	Enum
-	get() V
-}, PTo interface {
-	*To
-	set(V)
-}](from From) To {
-	m, err := As[To, V, From, PTo](from)
-	if err != nil {
-		panic(err)
-	}
-	return m
 }
 
 // SameValues reports whether enums A and B are backed by exactly the same set
@@ -570,10 +530,10 @@ func symDiff(a, b []string) (onlyA, onlyB []string) {
 	return append(onlyA, a...), append(onlyB, b...)
 }
 
-// resolve is the unconstrained resolver shared by Lookup, Parse, Valid, and the
+// resolve is the unconstrained resolver shared by TryParse, Parse, Contains, and
 // Unmarshal methods. It carries no set(V) constraint, so the Unmarshal methods —
 // whose T is known only to be an Enum and cannot prove *T has the setter — can
-// still call it. Lookup/Parse/Valid layer the compile-time type check on top.
+// still call it. TryParse/Parse/Contains layer the compile-time check on top.
 func resolve[T Enum, V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()

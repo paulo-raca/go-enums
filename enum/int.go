@@ -89,8 +89,34 @@ func (e IntEnum[T]) Value() (driver.Value, error) {
 // with StringEnum's set(string) so a single New serves both.
 func (e *IntEnum[T]) set(n int) { e.val = n }
 
-// get is the unexported value read path; see StringEnum.get.
-func (e IntEnum[T]) get() int { return e.val }
+// TryAs casts e to the member of To backed by the same int; see
+// StringEnum.TryAs for the full contract.
+func (e IntEnum[T]) TryAs[To Enum, PTo interface {
+	*To
+	set(int)
+}]() (To, bool) {
+	return castTo[To, int](e.val, e.index)
+}
+
+// As is the error-returning flavor of TryAs; see StringEnum.As.
+func (e IntEnum[T]) As[To Enum, PTo interface {
+	*To
+	set(int)
+}]() (To, error) {
+	return castErr[To, int](e.val, e.index)
+}
+
+// MustAs is the panicking sibling of As; see StringEnum.MustAs.
+func (e IntEnum[T]) MustAs[To Enum, PTo interface {
+	*To
+	set(int)
+}]() To {
+	m, err := castErr[To, int](e.val, e.index)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
 
 // setIndex records the 1-based registration position; see StringEnum.setIndex.
 func (e *IntEnum[T]) setIndex(p int) { e.index = p }

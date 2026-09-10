@@ -68,32 +68,48 @@ var OpaqueHearts = enum.New[OpaqueSuit](opaque) // want `enum\.New value must be
 
 func casts() {
 	// Equal sets: no diagnostic on any of the cast forms.
-	_, _ = enum.LookupAs[ApiSuit](SqlHearts)
-	_, _ = enum.As[ApiSuit](SqlHearts)
-	_ = enum.MustAs[ApiSuit](SqlHearts)
+	_, _ = SqlHearts.TryAs[ApiSuit]()
+	_, _ = SqlHearts.As[ApiSuit]()
+	_ = SqlHearts.MustAs[ApiSuit]()
 	_ = enum.SameValues[SqlSuit, ApiSuit]()
 
 	// Value-set mismatch: PartialSuit is missing "spades".
-	_, _ = enum.LookupAs[PartialSuit](SqlHearts) // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
-	_, _ = enum.As[PartialSuit](SqlHearts)       // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
-	_ = enum.MustAs[PartialSuit](SqlHearts)      // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
-	_ = enum.SameValues[SqlSuit, PartialSuit]()  // want `value sets of SqlSuit and PartialSuit differ; only in SqlSuit: "spades"`
+	_, _ = SqlHearts.TryAs[PartialSuit]()       // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
+	_, _ = SqlHearts.As[PartialSuit]()          // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
+	_ = SqlHearts.MustAs[PartialSuit]()         // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
+	_ = enum.SameValues[SqlSuit, PartialSuit]() // want `value sets of SqlSuit and PartialSuit differ; only in SqlSuit: "spades"`
 
 	// Symmetric: the extra values are reported on whichever side has them.
 	_ = enum.SameValues[PartialSuit, SqlSuit]() // want `value sets of PartialSuit and SqlSuit differ; only in SqlSuit: "spades"`
 
 	// Int enums: NextInt sim matches explicit values (equal sets).
-	_ = enum.MustAs[ApiColor](SqlRed)
+	_ = SqlRed.MustAs[ApiColor]()
 	_ = enum.SameValues[SqlColor, ApiColor]()
 
 	// Int enums with different value sets.
-	_ = enum.MustAs[DifferentColor](SqlRed)         // want `cannot cast SqlColor to DifferentColor: value sets differ; only in SqlColor: 0, 1, 2; only in DifferentColor: 10, 20, 30`
+	_ = SqlRed.MustAs[DifferentColor]()             // want `cannot cast SqlColor to DifferentColor: value sets differ; only in SqlColor: 0, 1, 2; only in DifferentColor: 10, 20, 30`
 	_ = enum.SameValues[SqlColor, DifferentColor]() // want `value sets of SqlColor and DifferentColor differ; only in SqlColor: 0, 1, 2; only in DifferentColor: 10, 20, 30`
 
 	// Non-constant value: check is skipped (no diagnostic).
 	_ = enum.SameValues[SqlSuit, OpaqueSuit]()
 
-	// Cross-kind SameValues: caught here (cross-kind LookupAs/As/MustAs is a
+	// Cross-kind SameValues: caught here (cross-kind TryAs/As/MustAs is a
 	// compile error, so it can only bite via SameValues).
 	_ = enum.SameValues[SqlSuit, SqlColor]() // want `SqlSuit and SqlColor can never have the same values: one is string-backed, the other int-backed`
+}
+
+// castsThroughPointer exercises the pointer-receiver shape. The receiver
+// expression's static type is *SqlSuit, so rule 4 must unwrap the pointer
+// before it can recognise the source enum — without that it silently skips.
+func castsThroughPointer() {
+	p := &SqlHearts
+	_, _ = p.TryAs[PartialSuit]() // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
+	_, _ = p.As[PartialSuit]()    // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
+	_ = p.MustAs[PartialSuit]()   // want `cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"`
+
+	pc := &SqlRed
+	_ = pc.MustAs[DifferentColor]() // want `cannot cast SqlColor to DifferentColor: value sets differ; only in SqlColor: 0, 1, 2; only in DifferentColor: 10, 20, 30`
+
+	// Equal sets through a pointer: still no diagnostic.
+	_ = p.MustAs[ApiSuit]()
 }

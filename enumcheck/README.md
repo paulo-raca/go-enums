@@ -80,7 +80,7 @@ func describe(s Suit) string {
 }
 ```
 
-4. **Cast value sets.** A call to `enum.LookupAs` / `enum.As` / `enum.MustAs`
+4. **Cast value sets.** A call to the `TryAs` / `As` / `MustAs` cast methods
    (or an `enum.SameValues` assertion) between two enum types whose statically
    known backing value sets are not exactly equal is flagged, naming the values
    present on only one side. Works across packages via analysis facts. If a
@@ -88,7 +88,7 @@ func describe(s Suit) string {
    that type (its value set can't be computed at analysis time).
 
 ```go
-enum.MustAs[PartialSuit](sqlHearts) // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
 ```
 
 ## Limitations
@@ -97,3 +97,9 @@ enum.MustAs[PartialSuit](sqlHearts) // enumcheck: cannot cast SqlSuit to Partial
   registered elsewhere at runtime are invisible to static analysis (and rejected).
 - Re-assignment is detected directly (`Hearts = …`); mutation via a taken address
   (`p := &Hearts; *p = …`) is not yet flagged.
+- Rule 4 reads the source enum from the cast's receiver, so a receiver whose
+  static type isn't the enum itself is skipped rather than flagged: an outer
+  struct that embeds it (`type wrap struct{ SqlSuit }`), the embedded base
+  (`x.StringEnum.As[To]()`), or a method value (`f := x.As[To]`). Pointers and
+  aliases (`p := &Hearts; p.As[To]()`) are resolved. Skips are missed warnings,
+  never false ones.

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ['1.24', 'stable']
+        go: ['1.27', 'stable']
     steps:
       - uses: actions/checkout@v4
 
@@ -36,14 +36,12 @@ jobs:
       - name: Test
         run: go test -race ./...
 
-      # The enumcheck analyzer tracks a recent x/tools, so it requires the
-      # current Go; exercise it only on the stable job.
+      # Both matrix entries are now >= 1.27 (the floor for generic methods),
+      # so enumcheck no longer needs to be gated to the stable job.
       - name: Vet enumcheck module
-        if: matrix.go == 'stable'
         run: go vet ./...
         working-directory: enumcheck
 
       - name: Test enumcheck module
-        if: matrix.go == 'stable'
         run: go test ./...
         working-directory: enumcheck

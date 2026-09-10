@@ -14,7 +14,7 @@
 //  3. Switch exhaustiveness. In a switch over an enum type, every case must name
 //     a member of that enum, and either all members are covered or a default
 //     clause is present.
-//  4. Cast value sets. A call to enum.LookupAs / enum.As / enum.MustAs (or an
+//  4. Cast value sets. A call to the TryAs / As / MustAs cast methods (or an
 //     enum.SameValues assertion) between two enum types whose statically-known
 //     backing value sets are not exactly equal is flagged, since some members
 //     could not survive the cast.
@@ -299,7 +299,7 @@ func run(pass *analysis.Pass) (any, error) {
 	// --- Rule 4: casts require exactly equal value sets. ---
 	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
 		ce := n.(*ast.CallExpr)
-		fnName, targs := castCall(pass, ce)
+		fnName, targs, recv := castCall(pass, ce)
 		if fnName == "" {
 			return
 		}
@@ -310,11 +310,14 @@ func run(pass *analysis.Pass) (any, error) {
 				return
 			}
 			fromT, toT = targs.At(0), targs.At(1)
-		default: // LookupAs/As/MustAs[To, V, From, PTo]
-			if targs.Len() < 3 {
+		default: // from.TryAs/As/MustAs[To, PTo]()
+			if targs.Len() < 1 || recv == nil {
 				return
 			}
-			toT, fromT = targs.At(0), targs.At(2)
+			toT, fromT = targs.At(0), recvEnumType(pass, recv)
+			if fromT == nil {
+				return
+			}
 		}
 		fromN, okFrom := fromT.(*types.Named)
 		toN, okTo := toT.(*types.Named)
@@ -330,8 +333,8 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 		if fromFact.Kind != toFact.Kind {
-			// Only reachable via SameValues — the get/set constraints make a
-			// cross-kind LookupAs/As/MustAs a compile error.
+			// Only reachable via SameValues — the set constraints make a
+			// cross-kind TryAs/As/MustAs a compile error.
 			pass.Reportf(ce.Pos(), "%s and %s can never have the same values: one is string-backed, the other int-backed", rel(fromT), rel(toT))
 			return
 		}
@@ -481,7 +484,7 @@ func enumBase(st *types.Struct) (idx int, arg types.Type, kind string) {
 // enumFunc resolves ce's callee to a function of the enum package, returning
 // the function object and the identifier carrying its instantiation (both nil
 // when the call is something else).
-func enumFunc(pass *analysis.Pass, ce *ast.CallExpr) (*types.Func, *ast.Ident) {
+func enumFunc(pass *analysis.Pass, ce *ast.CallExpr) (*types.Func, *ast.Ident, ast.Expr) {
 	fun := astutil.Unparen(ce.Fun)
 	switch f := fun.(type) {
 	case *ast.IndexExpr:
@@ -490,19 +493,54 @@ func enumFunc(pass *analysis.Pass, ce *ast.CallExpr) (*types.Func, *ast.Ident) {
 		fun = f.X
 	}
 	var id *ast.Ident
+	var recv ast.Expr
 	switch f := astutil.Unparen(fun).(type) {
 	case *ast.SelectorExpr:
 		id = f.Sel
+		// f.X is the package qualifier for enum.New/enum.SameValues, but the
+		// receiver expression for the cast methods. Tell them apart by whether
+		// it resolves to a package name.
+		if x, ok := astutil.Unparen(f.X).(*ast.Ident); !ok || !isPkgName(pass, x) {
+			recv = f.X
+		}
 	case *ast.Ident:
 		id = f
 	default:
-		return nil, nil
+		return nil, nil, nil
 	}
 	fn, ok := pass.TypesInfo.Uses[id].(*types.Func)
 	if !ok || fn.Pkg() == nil || fn.Pkg().Path() != enumPkgPath {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return fn, id
+	return fn, id, recv
+}
+
+// isPkgName reports whether id refers to an imported package rather than a value.
+func isPkgName(pass *analysis.Pass, id *ast.Ident) bool {
+	_, ok := pass.TypesInfo.Uses[id].(*types.PkgName)
+	return ok
+}
+
+// recvEnumType resolves a cast method's receiver expression to the named enum
+// type it is called on. The receiver's static type may be a pointer — a cast on
+// an addressable variable (p := &SqlHearts; p.TryAs[...]()) compiles fine and
+// yields *SqlSuit — so unwrap aliases and one level of pointer before the
+// caller's *types.Named assertion. Without this, rule 4 silently skips those
+// call sites.
+//
+// A receiver written as the embedded base (s.StringEnum.TryAs[...]()) resolves
+// to enum.StringEnum[SqlSuit], which is named but carries no enum fact, so the
+// caller degrades to a skip rather than a false positive.
+func recvEnumType(pass *analysis.Pass, recv ast.Expr) types.Type {
+	t := pass.TypesInfo.Types[recv].Type
+	if t == nil {
+		return nil
+	}
+	t = types.Unalias(t)
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = types.Unalias(ptr.Elem())
+	}
+	return t
 }
 
 // newCall reports whether e is a call to enum.New or enum.NextInt, returning the
@@ -512,7 +550,7 @@ func newCall(pass *analysis.Pass, e ast.Expr) (*ast.CallExpr, string, types.Type
 	if !ok {
 		return nil, "", nil
 	}
-	fn, id := enumFunc(pass, ce)
+	fn, id, _ := enumFunc(pass, ce)
 	if fn == nil || (fn.Name() != "New" && fn.Name() != "NextInt") {
 		return nil, "", nil
 	}
@@ -523,24 +561,26 @@ func newCall(pass *analysis.Pass, e ast.Expr) (*ast.CallExpr, string, types.Type
 	return ce, fn.Name(), arg
 }
 
-// castCall reports whether ce is a call to one of the cast-family functions
-// (enum.LookupAs/As/MustAs/SameValues), returning the function name and its
-// full instantiated type-argument list ("" when it is something else).
-func castCall(pass *analysis.Pass, ce *ast.CallExpr) (string, *types.TypeList) {
-	fn, id := enumFunc(pass, ce)
+// castCall reports whether ce is a call to a member of the cast family: the
+// TryAs/As/MustAs generic methods, or the package-level enum.SameValues. It
+// returns the name, the instantiated type-argument list, and — for the methods
+// — the receiver expression naming the source enum ("" when ce is something
+// else). SameValues has no receiver, so recv is nil on that path.
+func castCall(pass *analysis.Pass, ce *ast.CallExpr) (string, *types.TypeList, ast.Expr) {
+	fn, id, recv := enumFunc(pass, ce)
 	if fn == nil {
-		return "", nil
+		return "", nil, nil
 	}
 	switch fn.Name() {
-	case "LookupAs", "As", "MustAs", "SameValues":
+	case "TryAs", "As", "MustAs", "SameValues":
 	default:
-		return "", nil
+		return "", nil, nil
 	}
 	inst := pass.TypesInfo.Instances[id]
 	if inst.TypeArgs == nil {
-		return "", nil
+		return "", nil, nil
 	}
-	return fn.Name(), inst.TypeArgs
+	return fn.Name(), inst.TypeArgs, recv
 }
 
 // varOf resolves e (an identifier or selector) to the var it refers to, or nil.

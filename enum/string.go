@@ -81,10 +81,57 @@ func (e StringEnum[T]) Value() (driver.Value, error) {
 // of the same name; that shared name is what lets a single New serve both bases.
 func (e *StringEnum[T]) set(s string) { e.val = s }
 
-// get is the unexported value read path, the mirror of set. Promoted onto T it
-// lets the LookupAs/As/MustAs constraints prove — at compile time — that the
-// source and target enums share a backing kind (IntEnum's get returns int).
-func (e StringEnum[T]) get() string { return e.val }
+// TryAs casts e to the member of To backed by the same string — for the
+// parallel enums that accumulate in real projects (the sqlboiler one, the
+// OpenAPI one, the business-model one), which represent the same set and should
+// convert losslessly:
+//
+//	api, ok := sqlSuit.TryAs[OpenApiEnum]()
+//
+// Only To is named at the call site; PTo is inferred from *To. The set(string)
+// constraint ties To to this base's backing kind, so casting a string-backed
+// enum to an int-backed one is a compile error, not a runtime miss.
+//
+// The zero value casts to the zero value: "unset" travels across the cast (ok
+// is true; IsZero holds for the result). A registered member whose value names
+// no member of To yields (zero, false) — and the enumcheck analyzer flags cast
+// sites between enums whose value sets are not exactly equal.
+//
+// TryAs, As, and MustAs are the cast-flavored siblings of the package-level
+// TryParse, Parse, and MustParse.
+func (e StringEnum[T]) TryAs[To Enum, PTo interface {
+	*To
+	set(string)
+}]() (To, bool) {
+	return castTo[To, string](e.val, e.index)
+}
+
+// As is the error-returning flavor of TryAs: a miss yields
+// *InvalidValueError[To], composing with %w and errors.As like Parse.
+//
+//	api, err := sqlSuit.As[OpenApiEnum]()
+func (e StringEnum[T]) As[To Enum, PTo interface {
+	*To
+	set(string)
+}]() (To, error) {
+	return castErr[To, string](e.val, e.index)
+}
+
+// MustAs is the panicking sibling of As — for casts between enums whose value
+// sets are known to match (which the enumcheck analyzer can verify statically,
+// and SameValues can assert at runtime). Panics with *InvalidValueError[To].
+//
+//	api := sqlSuit.MustAs[OpenApiEnum]()
+func (e StringEnum[T]) MustAs[To Enum, PTo interface {
+	*To
+	set(string)
+}]() To {
+	m, err := castErr[To, string](e.val, e.index)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
 
 // setIndex records the 1-based registration position; see registerLocked. Paired
 // with set in the New/NextInt constructor constraints.

@@ -4,7 +4,7 @@ Generic, closed-set, value-backed enums for Go — without the per-type
 boilerplate (`String`, `MarshalText`/`UnmarshalText`, JSON, validation,
 listing).
 
-Requires Go 1.24+.
+Requires Go 1.27+.
 
 ```go
 import "github.com/paulo-raca/go-enums/enum"
@@ -69,8 +69,9 @@ var (
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
   (marshalling/persisting the zero value) errors, both matchable with `errors.As`
 - `enum.Values[T]()` (in registration order)
-- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.Lookup[T]` →
-  `(T, bool)`, `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
+- `enum.Contains[T](v)` → `bool` — membership test over that same set
+- three flavors of value lookup: `enum.TryParse[T]` → `(T, bool)`,
+  `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
 - `member.IsValid()` / `member.IsZero()` — is this a real member or the zero
   value? (lock-free; `IsZero` also drives `json:",omitzero"`)
 - `member.Index()` — 0-based registration order (`-1` for the zero value)
@@ -126,10 +127,10 @@ The backing field and its setter are unexported, so `enum.New` (and the
 iota-like `enum.NextInt`) are the only way to mint a member. Any package may
 declare enum types and call them, but cannot forge arbitrary values — that's a
 compile-time error. The zero value of an enum is constructible but never
-registered, so `Valid` reports it `false`. It also stays distinct even from a
+registered, so `member.IsValid()` reports it `false`. It also stays distinct even from a
 member backed by `""` or `0` — i.e. `MyEnum{} != enum.New[MyEnum](0)` — so you
 can use `MyEnum{}` as an "unset" sentinel (detect it with `member.IsZero()`,
-`== MyEnum{}`, or `Valid`) and still have a real member at `0`/`""`. The zero value renders as
+`== MyEnum{}`, or `!member.IsValid()`) and still have a real member at `0`/`""`. The zero value renders as
 `<invalid Suit>` (the type name) from `String()` and is refused by the marshallers (its `""`/`0`
 output wouldn't round-trip), so an unset enum field surfaces as a marshal error
 rather than silently corrupt data — use `json:",omitzero"` or a `*Suit` pointer
@@ -144,7 +145,7 @@ once.
 ## Validating input
 
 ```go
-s, ok := enum.Lookup[Suit](untrusted) // (T, bool)
+s, ok := enum.TryParse[Suit](untrusted) // (T, bool)
 if !ok {
 	// reject
 }
@@ -182,18 +183,19 @@ var (
 	// …
 )
 
-api, ok  := enum.LookupAs[ApiSuit](sqlHearts) // (T, bool)
-api, err := enum.As[ApiSuit](sqlHearts)       // (T, error) — *InvalidValueError[ApiSuit] on miss
-api      := enum.MustAs[ApiSuit](sqlHearts)   // T; panics on miss
+api, ok  := sqlHearts.TryAs[ApiSuit]()  // (T, bool)
+api, err := sqlHearts.As[ApiSuit]()     // (T, error) — *InvalidValueError[ApiSuit] on miss
+api      := sqlHearts.MustAs[ApiSuit]() // T; panics on miss
 ```
 
-Only the target type is named at the call site (`V` and `From` are inferred).
-The unexported constraints tie both enums to the same backing kind, so casting
-a string-backed enum to an int-backed one is a compile error, not a runtime
-miss:
+The casts are generic methods (Go 1.27), so only the target type is named at
+the call site — the source enum is the receiver, and the pointer constraint is
+inferred. The unexported constraints tie both enums to the same backing kind,
+so casting a string-backed enum to an int-backed one is a compile error, not a
+runtime miss:
 
 ```go
-enum.As[SqlColor](sqlHearts) // won't compile: SqlColor is int-backed
+sqlHearts.As[SqlColor]() // won't compile: SqlColor is int-backed
 ```
 
 The **zero value casts to the zero value** — an unset enum stays unset across
@@ -234,13 +236,13 @@ keep the member set statically knowable in the first place.
    name a member of that enum, and either all members are covered or a `default`
    clause is present. Works across packages (member sets travel via analysis
    facts).
-4. **Cast value sets** — a call to `enum.LookupAs` / `enum.As` / `enum.MustAs`
+4. **Cast value sets** — a call to the `TryAs` / `As` / `MustAs` cast methods
    (or an `enum.SameValues` assertion) between two enums whose statically-known
    backing value sets differ is flagged, naming the values present on only one
    side. Also works across packages.
 
 ```go
-enum.MustAs[PartialSuit](sqlHearts) // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
 ```
 
 ```go
