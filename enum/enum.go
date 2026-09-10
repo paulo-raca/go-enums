@@ -41,7 +41,7 @@
 //     methods on the member: TryAs[To]() (T, bool), As[To]() (T, error),
 //     MustAs[To]() (T, panics) — the zero value casts to the zero value, a
 //     cross-kind cast (string<->int) is a compile error, and enumcheck flags
-//     casts whose static value sets differ.
+//     casts whose source has static values the target lacks.
 //   - SameValues[A, B]() error asserts at runtime that two enum types have the
 //     exact same backing values — the runtime companion to that static check.
 //
@@ -455,8 +455,10 @@ func castErr[To Enum, V any](val V, index int) (To, error) {
 // SameValues reports whether enums A and B are backed by exactly the same set
 // of values, returning nil when they are and a descriptive error when they are
 // not (values present on only one side, or one type string-backed and the
-// other int-backed). It is the runtime companion to the enumcheck cast-site
-// rule — assert it in a test or init() when the linter isn't in the loop:
+// other int-backed). It is stricter than the enumcheck cast-site rule, which
+// only requires the source's values to be a subset of the target's — use
+// SameValues in a test or init() to assert two enums stay in lockstep in both
+// directions:
 //
 //	if err := enum.SameValues[SqlEnum, OpenApiEnum](); err != nil { ... }
 func SameValues[A, B Enum]() error {
