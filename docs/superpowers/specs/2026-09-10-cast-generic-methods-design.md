@@ -108,6 +108,20 @@ because those operations are type-level and have no receiver.
 | `enum.MustAs[To](from)`       | `from.MustAs[To]()`      |
 | `enum.SameValues[A, B]()`     | *(unchanged)*            |
 
+**Addendum (follow-up, same PR):** the asymmetry noted above was subsequently
+closed from the other side — `enum.Lookup` is renamed `enum.TryParse`, giving
+both families the same Try / plain / Must shape:
+
+| | comma-ok | error | panic |
+|---|---|---|---|
+| value lookup | `enum.TryParse[T]` | `enum.Parse[T]` | `enum.MustParse[T]` |
+| cast | `from.TryAs[To]()` | `from.As[To]()` | `from.MustAs[To]()` |
+
+`TryParse` stays package-level — it is type-level and has no receiver — so the
+remaining asymmetry is function-vs-method, which is inherent to the operations
+rather than a naming choice. `Valid[T]` keeps its name: it is a bool predicate,
+not a member of the trio.
+
 ## Scope
 
 Only the cast trio moves. Every other package-level function is **type-level** —

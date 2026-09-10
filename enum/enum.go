@@ -33,7 +33,7 @@
 //   - Compare() ordering members by Index — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
 //   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
-//     Lookup[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
+//     TryParse[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
 //   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
 //     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
 //     member methods HasTag(tag)/Tags()
@@ -121,8 +121,8 @@ func (e *ZeroMarshalError[T]) Error() string {
 // names/ints depending on its base, never both.
 type bucket struct {
 	order      []any          // members in registration order, for Values
-	names      map[string]any // value -> member, for Lookup/Valid + dedup (StringEnum only)
-	ints       map[int]any    // value -> member, for Lookup/Valid + dedup (IntEnum only)
+	names      map[string]any // value -> member, for TryParse/Valid + dedup (StringEnum only)
+	ints       map[int]any    // value -> member, for TryParse/Valid + dedup (IntEnum only)
 	maxInt     int            // highest value seen so far (IntEnum only)
 	tagsBySlot [][]any        // tags per member, parallel to order (slot = Index)
 }
@@ -357,7 +357,7 @@ func Values[T Enum]() []T {
 }
 
 // Valid reports whether the backing value v names a registered member of T. As
-// with New and Lookup, v is a string for a StringEnum or an int for an
+// with New and TryParse, v is a string for a StringEnum or an int for an
 // IntEnum, and the set(V) constraint makes a wrong type a compile error:
 //
 //	enum.Valid[Suit]("hearts") // true
@@ -373,17 +373,17 @@ func Valid[T Enum, V any, PT interface {
 	return ok
 }
 
-// Lookup resolves the backing value v to a registered member of T: a string
+// TryParse resolves the backing value v to a registered member of T: a string
 // for a StringEnum, or an int for an IntEnum:
 //
-//	s, ok := enum.Lookup[Suit]("hearts")
-//	c, ok := enum.Lookup[Color](2)
+//	s, ok := enum.TryParse[Suit]("hearts")
+//	c, ok := enum.TryParse[Color](2)
 //
 // V is inferred from the argument. The set(V) constraint ties V to T's backing
 // type exactly as New does, so passing the wrong type for a given enum — e.g.
-// enum.Lookup[Suit](5) or enum.Lookup[Color]("2") — is a compile error,
+// enum.TryParse[Suit](5) or enum.TryParse[Color]("2") — is a compile error,
 // not a runtime miss.
-func Lookup[T Enum, V any, PT interface {
+func TryParse[T Enum, V any, PT interface {
 	*T
 	set(V)
 }](v V) (T, bool) {
@@ -391,7 +391,7 @@ func Lookup[T Enum, V any, PT interface {
 }
 
 // Parse resolves the backing value v to a registered member of T. Same dispatch
-// as Lookup, but returns *InvalidValueError[T] instead of (T, bool) — so the
+// as TryParse, but returns *InvalidValueError[T] instead of (T, bool) — so the
 // common callsite ("look up, return err with %w") composes with errors.As and
 // the existing typed-error machinery.
 //
@@ -533,10 +533,10 @@ func symDiff(a, b []string) (onlyA, onlyB []string) {
 	return append(onlyA, a...), append(onlyB, b...)
 }
 
-// resolve is the unconstrained resolver shared by Lookup, Parse, Valid, and the
+// resolve is the unconstrained resolver shared by TryParse, Parse, Valid, and the
 // Unmarshal methods. It carries no set(V) constraint, so the Unmarshal methods —
 // whose T is known only to be an Enum and cannot prove *T has the setter — can
-// still call it. Lookup/Parse/Valid layer the compile-time type check on top.
+// still call it. TryParse/Parse/Valid layer the compile-time type check on top.
 func resolve[T Enum, V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()

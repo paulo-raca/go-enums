@@ -69,11 +69,11 @@ func TestStringBasics(t *testing.T) {
 	var zero Suit
 	require.False(t, zero.IsValid(), "zero value must not be valid")
 
-	got, ok := enum.Lookup[Suit]("spades")
+	got, ok := enum.TryParse[Suit]("spades")
 	require.True(t, ok)
 	require.Equal(t, Spades, got)
 
-	_, ok = enum.Lookup[Suit]("nope")
+	_, ok = enum.TryParse[Suit]("nope")
 	require.False(t, ok, "unknown string must miss")
 
 	// package-level Valid takes the backing value, not the member.
@@ -251,11 +251,11 @@ func TestDuplicateRegistrationPanics(t *testing.T) {
 }
 
 func TestIntLookup(t *testing.T) {
-	got, ok := enum.Lookup[Color](1)
+	got, ok := enum.TryParse[Color](1)
 	require.True(t, ok)
 	require.Equal(t, Green, got)
 
-	_, ok = enum.Lookup[Color](99)
+	_, ok = enum.TryParse[Color](99)
 	require.False(t, ok, "unknown int must miss")
 
 	require.True(t, Blue.IsValid())

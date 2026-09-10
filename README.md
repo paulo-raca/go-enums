@@ -69,7 +69,7 @@ var (
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
   (marshalling/persisting the zero value) errors, both matchable with `errors.As`
 - `enum.Values[T]()` (in registration order)
-- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.Lookup[T]` →
+- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.TryParse[T]` →
   `(T, bool)`, `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
 - `member.IsValid()` / `member.IsZero()` — is this a real member or the zero
   value? (lock-free; `IsZero` also drives `json:",omitzero"`)
@@ -144,7 +144,7 @@ once.
 ## Validating input
 
 ```go
-s, ok := enum.Lookup[Suit](untrusted) // (T, bool)
+s, ok := enum.TryParse[Suit](untrusted) // (T, bool)
 if !ok {
 	// reject
 }

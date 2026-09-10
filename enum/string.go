@@ -98,7 +98,7 @@ func (e *StringEnum[T]) set(s string) { e.val = s }
 // sites between enums whose value sets are not exactly equal.
 //
 // TryAs, As, and MustAs are the cast-flavored siblings of the package-level
-// Lookup, Parse, and MustParse.
+// TryParse, Parse, and MustParse.
 func (e StringEnum[T]) TryAs[To Enum, PTo interface {
 	*To
 	set(string)
