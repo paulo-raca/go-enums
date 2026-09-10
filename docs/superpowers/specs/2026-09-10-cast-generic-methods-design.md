@@ -60,7 +60,9 @@ accepted. The design depends on all of these.
    method set)`. The safety property is preserved by the same mechanism.
 4. **`go/types` exposes what the analyzer needs.** For a generic method call,
    `TypesInfo.Instances[sel.Sel].TypeArgs` yields `To` at index 0, and
-   `TypesInfo.Types[sel.X].Type` yields the receiver.
+   `TypesInfo.Types[sel.X].Type` yields the *static type of the receiver
+   expression* — which may be `*SqlSuit` rather than `SqlSuit`, hence the
+   unwrapping requirement in the enumcheck section below.
 5. **The full six-method design compiles and behaves.** A faithful spike of both
    bases over the shared helpers reproduced every current property: round-trip
    cast on string and int enums, zero-casts-to-zero with `ok == true`, miss →
@@ -145,9 +147,9 @@ returns the zero `To` with `ok == true`, preserving today's "unset travels
 across the cast" semantics. Otherwise `castTo` resolves `val` against `To`'s
 registry via the existing `resolve[To]`. `castErr` delegates to `castTo`.
 
-Each of the six methods is then a single delegating line: `TryAs` → `castTo`,
-`As` → `castErr`, `MustAs` → `castErr` plus a panic on error. Two helpers rather
-than one is deliberate — with only `castTo`, the `*InvalidValueError[To]`
+`TryAs` → `castTo` and `As` → `castErr` are one-line delegations; `MustAs` is
+the three-line `castErr`-then-panic-on-error form, on both bases. Two helpers
+rather than one is deliberate — with only `castTo`, the `*InvalidValueError[To]`
 construction would be duplicated in `As` and `MustAs` on both bases, four times
 over.
 
@@ -186,7 +188,8 @@ not end up with six copies of the cast documentation.
 **`enum/string.go`**
 - Add `TryAs` / `As` / `MustAs` on `StringEnum[T]`, constraint `set(string)`,
   carrying the canonical prose.
-- Delete `get()` (line 87).
+- Delete `get()` (line 87) together with its doc comment (lines 84-86), which
+  names `LookupAs/As/MustAs` explicitly.
 
 **`enum/int.go`**
 - Add `TryAs` / `As` / `MustAs` on `IntEnum[T]`, constraint `set(int)`, with
@@ -198,8 +201,11 @@ not end up with six copies of the cast documentation.
   `newCall` (rule 2) and `castCall` (rule 4). It already resolves a promoted
   generic-method call correctly — `fn.Pkg().Path()` is the enum package — so the
   change here is smaller than a rewrite. Take care not to regress rule 2.
-- `castCall` (line 527) must return the receiver expression alongside the name
-  and type args, and its name switch (line 535) swaps `"LookupAs"` → `"TryAs"`.
+- `castCall` (declared at line 529) must return the receiver expression
+  alongside the name and type args, and its name switch (line 535) swaps
+  `"LookupAs"` → `"TryAs"`. Its doc comment (lines 526-528) names
+  `enum.LookupAs/As/MustAs/SameValues` and describes the old return signature;
+  rewrite it for the method form.
 - Rule 4 (lines 299-359) takes `toT = targs.At(0)` and
   `fromT = TypesInfo.Types[sel.X].Type`, replacing the current
   `targs.At(0)` / `targs.At(2)` indexing.
@@ -224,6 +230,10 @@ not end up with six copies of the cast documentation.
 **`enumcheck/testdata/src/github.com/paulo-raca/go-enums/enum/enum.go`** (stub)
 - Delete `LookupAs`, `As`, `MustAs` (lines 23-46) and both `get()` methods
   (lines 8, 13).
+- Delete the comment at lines 20-21 — "the same type arguments
+  (To=0, V=1, From=2, PTo=3) the analyzer reads". It sits *between* the two
+  deletion ranges above, so it survives a literal reading of this list, and it
+  documents precisely the indexing scheme this change abandons.
 - Add the six methods to the stub's `StringEnum` / `IntEnum`.
 - The stub's type parameters are `[T any]`, not `[T Enum]`; keep that — it only
   needs to typecheck, not enforce.
