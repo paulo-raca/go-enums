@@ -97,3 +97,9 @@ sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit
   registered elsewhere at runtime are invisible to static analysis (and rejected).
 - Re-assignment is detected directly (`Hearts = …`); mutation via a taken address
   (`p := &Hearts; *p = …`) is not yet flagged.
+- Rule 4 reads the source enum from the cast's receiver, so a receiver whose
+  static type isn't the enum itself is skipped rather than flagged: an outer
+  struct that embeds it (`type wrap struct{ SqlSuit }`), the embedded base
+  (`x.StringEnum.As[To]()`), or a method value (`f := x.As[To]`). Pointers and
+  aliases (`p := &Hearts; p.As[To]()`) are resolved. Skips are missed warnings,
+  never false ones.
