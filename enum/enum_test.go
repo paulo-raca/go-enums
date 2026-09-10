@@ -76,9 +76,9 @@ func TestStringBasics(t *testing.T) {
 	_, ok = enum.TryParse[Suit]("nope")
 	require.False(t, ok, "unknown string must miss")
 
-	// package-level Valid takes the backing value, not the member.
-	require.True(t, enum.Valid[Suit]("hearts"))
-	require.False(t, enum.Valid[Suit]("nope"))
+	// package-level Contains takes the backing value, not the member.
+	require.True(t, enum.Contains[Suit]("hearts"))
+	require.False(t, enum.Contains[Suit]("nope"))
 }
 
 func TestStringValuesOrder(t *testing.T) {
@@ -259,8 +259,8 @@ func TestIntLookup(t *testing.T) {
 	require.False(t, ok, "unknown int must miss")
 
 	require.True(t, Blue.IsValid())
-	require.True(t, enum.Valid[Color](2))
-	require.False(t, enum.Valid[Color](99))
+	require.True(t, enum.Contains[Color](2))
+	require.False(t, enum.Contains[Color](99))
 }
 
 func TestIntJSONIsNumber(t *testing.T) {

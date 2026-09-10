@@ -119,8 +119,15 @@ both families the same Try / plain / Must shape:
 
 `TryParse` stays package-level — it is type-level and has no receiver — so the
 remaining asymmetry is function-vs-method, which is inherent to the operations
-rather than a naming choice. `Valid[T]` keeps its name: it is a bool predicate,
-not a member of the trio.
+rather than a naming choice.
+
+The bool predicate `Valid[T]` is renamed `Contains[T]` in the same follow-up. It
+was never part of the trio, and its old name collided audibly with the unrelated
+`member.IsValid()` method — the two answer different questions (is this *value* a
+member? vs is this *member* non-zero?), and the collision had already produced
+wrong prose in the package doc and README, both of which offered `Valid` as a way
+to detect the zero value. `Contains` asks an unmistakably different question and
+pairs with `Values[T]()`: one enumerates the closed set, the other tests it.
 
 ## Scope
 

@@ -69,8 +69,9 @@ var (
 - typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
   (marshalling/persisting the zero value) errors, both matchable with `errors.As`
 - `enum.Values[T]()` (in registration order)
-- four flavors of value lookup: `enum.Valid[T]` → `bool`, `enum.TryParse[T]` →
-  `(T, bool)`, `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
+- `enum.Contains[T](v)` → `bool` — membership test over that same set
+- three flavors of value lookup: `enum.TryParse[T]` → `(T, bool)`,
+  `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
 - `member.IsValid()` / `member.IsZero()` — is this a real member or the zero
   value? (lock-free; `IsZero` also drives `json:",omitzero"`)
 - `member.Index()` — 0-based registration order (`-1` for the zero value)
@@ -126,10 +127,10 @@ The backing field and its setter are unexported, so `enum.New` (and the
 iota-like `enum.NextInt`) are the only way to mint a member. Any package may
 declare enum types and call them, but cannot forge arbitrary values — that's a
 compile-time error. The zero value of an enum is constructible but never
-registered, so `Valid` reports it `false`. It also stays distinct even from a
+registered, so `member.IsValid()` reports it `false`. It also stays distinct even from a
 member backed by `""` or `0` — i.e. `MyEnum{} != enum.New[MyEnum](0)` — so you
 can use `MyEnum{}` as an "unset" sentinel (detect it with `member.IsZero()`,
-`== MyEnum{}`, or `Valid`) and still have a real member at `0`/`""`. The zero value renders as
+`== MyEnum{}`, or `!member.IsValid()`) and still have a real member at `0`/`""`. The zero value renders as
 `<invalid Suit>` (the type name) from `String()` and is refused by the marshallers (its `""`/`0`
 output wouldn't round-trip), so an unset enum field surfaces as a marshal error
 rather than silently corrupt data — use `json:",omitzero"` or a `*Suit` pointer

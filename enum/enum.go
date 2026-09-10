@@ -32,7 +32,7 @@
 //     registration order; -1 marks the zero value)
 //   - Compare() ordering members by Index — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
-//   - Values[T](); and four flavors of value lookup: Valid[T] (bool),
+//   - Values[T]() and Contains[T](v); plus three flavors of value lookup:
 //     TryParse[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
 //   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
 //     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
@@ -46,8 +46,9 @@
 //     exact same backing values — the runtime companion to that static check.
 //
 // A constructed member is always distinct from the zero value — even one backed
-// by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with == or
-// Valid). The zero value renders as "<invalid T>" (e.g. "<invalid Suit>") from
+// by "" or 0 — so MyEnum{} works as an "unset" sentinel (detect it with ==,
+// IsZero, or IsValid). The zero value renders as "<invalid T>" (e.g.
+// "<invalid Suit>") from
 // String and is refused by the Marshal methods (its "" / 0 output would not
 // round-trip).
 //
@@ -121,8 +122,8 @@ func (e *ZeroMarshalError[T]) Error() string {
 // names/ints depending on its base, never both.
 type bucket struct {
 	order      []any          // members in registration order, for Values
-	names      map[string]any // value -> member, for TryParse/Valid + dedup (StringEnum only)
-	ints       map[int]any    // value -> member, for TryParse/Valid + dedup (IntEnum only)
+	names      map[string]any // value -> member, for TryParse/Contains + dedup (StringEnum only)
+	ints       map[int]any    // value -> member, for TryParse/Contains + dedup (IntEnum only)
 	maxInt     int            // highest value seen so far (IntEnum only)
 	tagsBySlot [][]any        // tags per member, parallel to order (slot = Index)
 }
@@ -356,16 +357,17 @@ func Values[T Enum]() []T {
 	return out
 }
 
-// Valid reports whether the backing value v names a registered member of T. As
-// with New and TryParse, v is a string for a StringEnum or an int for an
-// IntEnum, and the set(V) constraint makes a wrong type a compile error:
+// Contains reports whether the backing value v names a registered member of T
+// — the membership test over the set Values[T]() enumerates. As with New and
+// TryParse, v is a string for a StringEnum or an int for an IntEnum, and the
+// set(V) constraint makes a wrong type a compile error:
 //
-//	enum.Valid[Suit]("hearts") // true
-//	enum.Valid[Color](2)       // true
+//	enum.Contains[Suit]("hearts") // true
+//	enum.Contains[Color](2)       // true
 //
-// To test a member value itself (a constructed member vs the zero value), call
-// its IsValid method instead: v.IsValid().
-func Valid[T Enum, V any, PT interface {
+// It is TryParse with the member discarded; prefer TryParse when you want the
+// member itself, and Contains when a bool is all a condition needs.
+func Contains[T Enum, V any, PT interface {
 	*T
 	set(V)
 }](v V) bool {
@@ -528,10 +530,10 @@ func symDiff(a, b []string) (onlyA, onlyB []string) {
 	return append(onlyA, a...), append(onlyB, b...)
 }
 
-// resolve is the unconstrained resolver shared by TryParse, Parse, Valid, and the
+// resolve is the unconstrained resolver shared by TryParse, Parse, Contains, and
 // Unmarshal methods. It carries no set(V) constraint, so the Unmarshal methods —
 // whose T is known only to be an Enum and cannot prove *T has the setter — can
-// still call it. TryParse/Parse/Valid layer the compile-time type check on top.
+// still call it. TryParse/Parse/Contains layer the compile-time check on top.
 func resolve[T Enum, V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
