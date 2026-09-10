@@ -4,7 +4,7 @@ Generic, closed-set, value-backed enums for Go — without the per-type
 boilerplate (`String`, `MarshalText`/`UnmarshalText`, JSON, validation,
 listing).
 
-Requires Go 1.24+.
+Requires Go 1.27+.
 
 ```go
 import "github.com/paulo-raca/go-enums/enum"
@@ -182,18 +182,19 @@ var (
 	// …
 )
 
-api, ok  := enum.LookupAs[ApiSuit](sqlHearts) // (T, bool)
-api, err := enum.As[ApiSuit](sqlHearts)       // (T, error) — *InvalidValueError[ApiSuit] on miss
-api      := enum.MustAs[ApiSuit](sqlHearts)   // T; panics on miss
+api, ok  := sqlHearts.TryAs[ApiSuit]() // (T, bool)
+api, err := sqlHearts.As[ApiSuit]()    // (T, error) — *InvalidValueError[ApiSuit] on miss
+api      := sqlHearts.MustAs[ApiSuit]() // T; panics on miss
 ```
 
-Only the target type is named at the call site (`V` and `From` are inferred).
-The unexported constraints tie both enums to the same backing kind, so casting
-a string-backed enum to an int-backed one is a compile error, not a runtime
-miss:
+The casts are generic methods (Go 1.27), so only the target type is named at
+the call site — the source enum is the receiver, and the pointer constraint is
+inferred. The unexported constraints tie both enums to the same backing kind,
+so casting a string-backed enum to an int-backed one is a compile error, not a
+runtime miss:
 
 ```go
-enum.As[SqlColor](sqlHearts) // won't compile: SqlColor is int-backed
+sqlHearts.As[SqlColor]() // won't compile: SqlColor is int-backed
 ```
 
 The **zero value casts to the zero value** — an unset enum stays unset across
@@ -234,13 +235,13 @@ keep the member set statically knowable in the first place.
    name a member of that enum, and either all members are covered or a `default`
    clause is present. Works across packages (member sets travel via analysis
    facts).
-4. **Cast value sets** — a call to `enum.LookupAs` / `enum.As` / `enum.MustAs`
+4. **Cast value sets** — a call to the `TryAs` / `As` / `MustAs` cast methods
    (or an `enum.SameValues` assertion) between two enums whose statically-known
    backing value sets differ is flagged, naming the values present on only one
    side. Also works across packages.
 
 ```go
-enum.MustAs[PartialSuit](sqlHearts) // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
 ```
 
 ```go

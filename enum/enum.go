@@ -37,10 +37,11 @@
 //   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
 //     ValuesWithAnyTags[T] (union), ValuesWithAllTags[T] (intersection); plus
 //     member methods HasTag(tag)/Tags()
-//   - casting between parallel enums that share a backing kind: LookupAs[To]
-//     (T, bool), As[To] (T, error), MustAs[To] (T, panics) — the zero value
-//     casts to the zero value, a cross-kind cast (string<->int) is a compile
-//     error, and enumcheck flags casts whose static value sets differ.
+//   - casting between parallel enums that share a backing kind, as generic
+//     methods on the member: TryAs[To]() (T, bool), As[To]() (T, error),
+//     MustAs[To]() (T, panics) — the zero value casts to the zero value, a
+//     cross-kind cast (string<->int) is a compile error, and enumcheck flags
+//     casts whose static value sets differ.
 //   - SameValues[A, B]() error asserts at runtime that two enum types have the
 //     exact same backing values — the runtime companion to that static check.
 //
@@ -60,7 +61,7 @@
 // mutex-guarded, so concurrent reads and runtime registration are safe, though
 // registration is normally an init-time var-block affair.
 //
-// Requires Go 1.24+.
+// Requires Go 1.27+ (the cast methods are generic methods).
 package enum
 
 import (
@@ -423,73 +424,35 @@ func MustParse[T Enum, V any, PT interface {
 	return m
 }
 
-// LookupAs casts a member of one enum type to the member of To backed by the
-// same value — for the parallel enums that accumulate in real projects (the
-// sqlboiler one, the OpenAPI one, the business-model one), which represent the
-// same set and should convert losslessly:
+// castTo is the shared cast implementation behind TryAs on both bases: it
+// resolves val against To's registry, treating the zero value (index 0) as
+// casting to the zero value of To, so "unset" travels across a cast.
 //
-//	api, ok := enum.LookupAs[OpenApiEnum](sqlEnum)
-//
-// Only To is named at the call site. The unexported get/set constraints tie
-// both enums to the same backing kind, so casting a string-backed enum to an
-// int-backed one (or vice versa) is a compile error, not a runtime miss.
-//
-// The zero value casts to the zero value: "unset" travels across the cast
-// (ok is true; IsZero holds for the result). A registered member whose value
-// names no member of To yields (zero, false) — and the enumcheck analyzer flags
-// cast sites between enums whose value sets are not exactly equal.
-//
-// LookupAs, As, and MustAs are the cast-flavored siblings of Lookup, Parse,
-// and MustParse.
-func LookupAs[To Enum, V any, From interface {
-	Enum
-	get() V
-}, PTo interface {
+// V is tied to the caller's backing kind by the set(V) constraint, which is
+// what makes a string<->int cast a compile error at the method callsites.
+func castTo[To Enum, V any, PTo interface {
 	*To
 	set(V)
-}](from From) (To, bool) {
+}](val V, index int) (To, bool) {
 	var zero To
-	if from.Index() < 0 {
+	if index == 0 {
 		return zero, true
 	}
-	return resolve[To](from.get())
+	return resolve[To](val)
 }
 
-// As is the error-returning flavor of LookupAs: a miss yields
-// *InvalidValueError[To], composing with %w and errors.As like Parse.
-//
-//	api, err := enum.As[OpenApiEnum](sqlEnum)
-func As[To Enum, V any, From interface {
-	Enum
-	get() V
-}, PTo interface {
+// castErr is castTo with a miss turned into *InvalidValueError[To]; it backs As
+// and MustAs on both bases. Keeping it separate from castTo means the error
+// construction lives once rather than in four method bodies.
+func castErr[To Enum, V any, PTo interface {
 	*To
 	set(V)
-}](from From) (To, error) {
-	m, ok := LookupAs[To, V, From, PTo](from)
+}](val V, index int) (To, error) {
+	m, ok := castTo[To, V, PTo](val, index)
 	if !ok {
-		return m, &InvalidValueError[To]{Value: fmt.Sprint(from.get())}
+		return m, &InvalidValueError[To]{Value: fmt.Sprint(val)}
 	}
 	return m, nil
-}
-
-// MustAs is the panicking sibling of As — for casts between enums whose value
-// sets are known to match (which the enumcheck analyzer can verify statically,
-// and SameValues can assert at runtime). Panics with *InvalidValueError[To].
-//
-//	api := enum.MustAs[OpenApiEnum](sqlEnum)
-func MustAs[To Enum, V any, From interface {
-	Enum
-	get() V
-}, PTo interface {
-	*To
-	set(V)
-}](from From) To {
-	m, err := As[To, V, From, PTo](from)
-	if err != nil {
-		panic(err)
-	}
-	return m
 }
 
 // SameValues reports whether enums A and B are backed by exactly the same set

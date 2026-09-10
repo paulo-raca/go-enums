@@ -80,7 +80,7 @@ func describe(s Suit) string {
 }
 ```
 
-4. **Cast value sets.** A call to `enum.LookupAs` / `enum.As` / `enum.MustAs`
+4. **Cast value sets.** A call to the `TryAs` / `As` / `MustAs` cast methods
    (or an `enum.SameValues` assertion) between two enum types whose statically
    known backing value sets are not exactly equal is flagged, naming the values
    present on only one side. Works across packages via analysis facts. If a
@@ -88,7 +88,7 @@ func describe(s Suit) string {
    that type (its value set can't be computed at analysis time).
 
 ```go
-enum.MustAs[PartialSuit](sqlHearts) // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
 ```
 
 ## Limitations
