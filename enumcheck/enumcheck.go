@@ -333,7 +333,7 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 		if fromFact.Kind != toFact.Kind {
-			// Only reachable via SameValues — the get/set constraints make a
+			// Only reachable via SameValues — the set constraints make a
 			// cross-kind TryAs/As/MustAs a compile error.
 			pass.Reportf(ce.Pos(), "%s and %s can never have the same values: one is string-backed, the other int-backed", rel(fromT), rel(toT))
 			return

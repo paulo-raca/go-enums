@@ -95,7 +95,7 @@ func (e IntEnum[T]) TryAs[To Enum, PTo interface {
 	*To
 	set(int)
 }]() (To, bool) {
-	return castTo[To, int, PTo](e.val, e.index)
+	return castTo[To, int](e.val, e.index)
 }
 
 // As is the error-returning flavor of TryAs; see StringEnum.As.
@@ -103,7 +103,7 @@ func (e IntEnum[T]) As[To Enum, PTo interface {
 	*To
 	set(int)
 }]() (To, error) {
-	return castErr[To, int, PTo](e.val, e.index)
+	return castErr[To, int](e.val, e.index)
 }
 
 // MustAs is the panicking sibling of As; see StringEnum.MustAs.
@@ -111,7 +111,7 @@ func (e IntEnum[T]) MustAs[To Enum, PTo interface {
 	*To
 	set(int)
 }]() To {
-	m, err := castErr[To, int, PTo](e.val, e.index)
+	m, err := castErr[To, int](e.val, e.index)
 	if err != nil {
 		panic(err)
 	}

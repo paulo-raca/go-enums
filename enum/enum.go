@@ -428,12 +428,10 @@ func MustParse[T Enum, V any, PT interface {
 // resolves val against To's registry, treating the zero value (index 0) as
 // casting to the zero value of To, so "unset" travels across a cast.
 //
-// V is tied to the caller's backing kind by the set(V) constraint, which is
-// what makes a string<->int cast a compile error at the method callsites.
-func castTo[To Enum, V any, PTo interface {
-	*To
-	set(V)
-}](val V, index int) (To, bool) {
+// V is whatever the calling base is backed by; the compile-time guarantee that
+// To shares that backing kind comes from the *methods'* PTo constraint, not
+// from here — this helper only needs To and V to line up.
+func castTo[To Enum, V any](val V, index int) (To, bool) {
 	var zero To
 	if index == 0 {
 		return zero, true
@@ -444,11 +442,8 @@ func castTo[To Enum, V any, PTo interface {
 // castErr is castTo with a miss turned into *InvalidValueError[To]; it backs As
 // and MustAs on both bases. Keeping it separate from castTo means the error
 // construction lives once rather than in four method bodies.
-func castErr[To Enum, V any, PTo interface {
-	*To
-	set(V)
-}](val V, index int) (To, error) {
-	m, ok := castTo[To, V, PTo](val, index)
+func castErr[To Enum, V any](val V, index int) (To, error) {
+	m, ok := castTo[To, V](val, index)
 	if !ok {
 		return m, &InvalidValueError[To]{Value: fmt.Sprint(val)}
 	}

@@ -182,8 +182,8 @@ var (
 	// …
 )
 
-api, ok  := sqlHearts.TryAs[ApiSuit]() // (T, bool)
-api, err := sqlHearts.As[ApiSuit]()    // (T, error) — *InvalidValueError[ApiSuit] on miss
+api, ok  := sqlHearts.TryAs[ApiSuit]()  // (T, bool)
+api, err := sqlHearts.As[ApiSuit]()     // (T, error) — *InvalidValueError[ApiSuit] on miss
 api      := sqlHearts.MustAs[ApiSuit]() // T; panics on miss
 ```
 
