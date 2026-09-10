@@ -95,7 +95,8 @@ func (e *StringEnum[T]) set(s string) { e.val = s }
 // The zero value casts to the zero value: "unset" travels across the cast (ok
 // is true; IsZero holds for the result). A registered member whose value names
 // no member of To yields (zero, false) — and the enumcheck analyzer flags cast
-// sites between enums whose value sets are not exactly equal.
+// sites whose source enum has values the target lacks (widening, where the
+// source is a subset of the target, is total and is not flagged).
 //
 // TryAs, As, and MustAs are the cast-flavored siblings of the package-level
 // TryParse, Parse, and MustParse.

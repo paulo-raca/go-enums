@@ -236,13 +236,15 @@ keep the member set statically knowable in the first place.
    name a member of that enum, and either all members are covered or a `default`
    clause is present. Works across packages (member sets travel via analysis
    facts).
-4. **Cast value sets** — a call to the `TryAs` / `As` / `MustAs` cast methods
-   (or an `enum.SameValues` assertion) between two enums whose statically-known
-   backing value sets differ is flagged, naming the values present on only one
-   side. Also works across packages.
+4. **Cast value sets** — a cast (`TryAs` / `As` / `MustAs`) is flagged when the
+   source enum has statically-known backing values the target lacks, naming
+   them. Widening is total and stays quiet: only the source needs to be a subset
+   of the target. An `enum.SameValues` assertion is stricter, requiring the sets
+   to be exactly equal. Also works across packages.
 
 ```go
-sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: missing in PartialSuit: "spades"
+partialHearts.MustAs[SqlSuit]() // ok — PartialSuit ⊂ SqlSuit, so the cast always succeeds
 ```
 
 ```go

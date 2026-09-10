@@ -14,10 +14,12 @@
 //  3. Switch exhaustiveness. In a switch over an enum type, every case must name
 //     a member of that enum, and either all members are covered or a default
 //     clause is present.
-//  4. Cast value sets. A call to the TryAs / As / MustAs cast methods (or an
-//     enum.SameValues assertion) between two enum types whose statically-known
-//     backing value sets are not exactly equal is flagged, since some members
-//     could not survive the cast.
+//  4. Cast value sets. A cast (TryAs / As / MustAs) is flagged when the source
+//     enum has statically-known backing values the target lacks — those members
+//     could not survive the cast. Values present only in the target are fine:
+//     the cast is total as long as the source is a subset of the target. An
+//     enum.SameValues assertion is stricter, and is flagged unless the two
+//     value sets are exactly equal.
 package enumcheck
 
 import (
@@ -296,7 +298,7 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	})
 
-	// --- Rule 4: casts require exactly equal value sets. ---
+	// --- Rule 4: a cast needs source ⊆ target; SameValues needs equality. ---
 	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
 		ce := n.(*ast.CallExpr)
 		fnName, targs, recv := castCall(pass, ce)
@@ -342,23 +344,32 @@ func run(pass *analysis.Pass) (any, error) {
 			return // some member value is not statically known; nothing to compare
 		}
 		onlyFrom := setDiff(fromFact.Values, toFact.Values)
-		onlyTo := setDiff(toFact.Values, fromFact.Values)
-		if len(onlyFrom) == 0 && len(onlyTo) == 0 {
+
+		if fnName == "SameValues" {
+			// SameValues asserts equality, so it cares about both directions.
+			onlyTo := setDiff(toFact.Values, fromFact.Values)
+			if len(onlyFrom) == 0 && len(onlyTo) == 0 {
+				return
+			}
+			msg := "value sets of " + rel(fromT) + " and " + rel(toT) + " differ"
+			if len(onlyFrom) > 0 {
+				msg += "; only in " + rel(fromT) + ": " + fmtValues(onlyFrom, fromFact.Kind)
+			}
+			if len(onlyTo) > 0 {
+				msg += "; only in " + rel(toT) + ": " + fmtValues(onlyTo, toFact.Kind)
+			}
+			pass.Reportf(ce.Pos(), "%s", msg)
 			return
 		}
-		var msg string
-		if fnName == "SameValues" {
-			msg = "value sets of " + rel(fromT) + " and " + rel(toT) + " differ"
-		} else {
-			msg = "cannot cast " + rel(fromT) + " to " + rel(toT) + ": value sets differ"
+
+		// A cast only has to be total in one direction: every source value must
+		// name a member of the target. Values the target has and the source does
+		// not are simply never produced, so widening (A ⊂ B, a.As[B]()) is fine.
+		if len(onlyFrom) == 0 {
+			return
 		}
-		if len(onlyFrom) > 0 {
-			msg += "; only in " + rel(fromT) + ": " + fmtValues(onlyFrom, fromFact.Kind)
-		}
-		if len(onlyTo) > 0 {
-			msg += "; only in " + rel(toT) + ": " + fmtValues(onlyTo, toFact.Kind)
-		}
-		pass.Reportf(ce.Pos(), "%s", msg)
+		pass.Reportf(ce.Pos(), "cannot cast %s to %s: missing in %s: %s",
+			rel(fromT), rel(toT), rel(toT), fmtValues(onlyFrom, fromFact.Kind))
 	})
 
 	return nil, nil

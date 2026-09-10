@@ -80,15 +80,20 @@ func describe(s Suit) string {
 }
 ```
 
-4. **Cast value sets.** A call to the `TryAs` / `As` / `MustAs` cast methods
-   (or an `enum.SameValues` assertion) between two enum types whose statically
-   known backing value sets are not exactly equal is flagged, naming the values
-   present on only one side. Works across packages via analysis facts. If a
-   member is constructed with a non-constant argument, the check is skipped for
-   that type (its value set can't be computed at analysis time).
+4. **Cast value sets.** A cast (`TryAs` / `As` / `MustAs`) is flagged when the
+   source enum has statically known backing values the target lacks — those
+   members could not survive the cast. Values present only in the *target* are
+   fine: a cast is total as long as the source's set is a subset of the
+   target's, so widening (`b.As[A]()` where `B ⊂ A`) is not flagged while
+   narrowing (`a.As[B]()`) is. An `enum.SameValues` assertion is stricter and is
+   flagged unless the two sets are exactly equal. Works across packages via
+   analysis facts. If a member is constructed with a non-constant argument, the
+   check is skipped for that type (its value set can't be computed at analysis
+   time).
 
 ```go
-sqlHearts.MustAs[PartialSuit]() // enumcheck: cannot cast SqlSuit to PartialSuit: value sets differ; only in SqlSuit: "spades"
+sqlHearts.MustAs[PartialSuit]()     // enumcheck: cannot cast SqlSuit to PartialSuit: missing in PartialSuit: "spades"
+partialHearts.MustAs[SqlSuit]()     // ok: PartialSuit ⊂ SqlSuit, the cast is total
 ```
 
 ## Limitations
