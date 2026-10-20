@@ -66,8 +66,11 @@ var (
 - JSON: `StringEnum` as a string, `IntEnum` as a number (and `null` is a no-op)
 - `database/sql`: `driver.Valuer` + `sql.Scanner` (`StringEnum` as text, `IntEnum`
   as `int64`); use a `*T` pointer for a nullable column
-- typed `*enum.InvalidValueError[T]` (bad input) and `*enum.ZeroMarshalError[T]`
-  (marshalling/persisting the zero value) errors, both matchable with `errors.As`
+- typed `*enum.InvalidValueError[T]` (bad input), `*enum.ZeroMarshalError[T]`
+  (marshalling/persisting the zero value) and `*enum.ZeroValueError[T]` (unset
+  value, from `RequireValid`) errors, all matchable with `errors.As`
+- `enum.RequireValid(v)` → `error` — rejects the zero value with
+  `*enum.ZeroValueError[T]`; the error-returning form of the `IsValid()` guard
 - `enum.Values[T]()` (in registration order)
 - `enum.Contains[T](v)` → `bool` — membership test over that same set
 - three flavors of value lookup: `enum.TryParse[T]` → `(T, bool)`,
