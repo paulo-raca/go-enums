@@ -14,7 +14,7 @@ import (
 // T appears only in method signatures — it is a phantom type parameter carrying
 // the concrete identity so UnmarshalText can resolve against the right member
 // set and return *InvalidValueError[T]. It is never a stored field.
-type StringEnum[T Enum] struct {
+type StringEnum[T Enum[T]] struct {
 	val string
 	// index is the 1-based registration order; 0 only for the Go zero value. It
 	// both orders members and marks the zero value invalid, so StringEnum{} stays
@@ -100,7 +100,7 @@ func (e *StringEnum[T]) set(s string) { e.val = s }
 //
 // TryAs, As, and MustAs are the cast-flavored siblings of the package-level
 // TryParse, Parse, and MustParse.
-func (e StringEnum[T]) TryAs[To Enum, PTo interface {
+func (e StringEnum[T]) TryAs[To Enum[To], PTo interface {
 	*To
 	set(string)
 }]() (To, bool) {
@@ -111,7 +111,7 @@ func (e StringEnum[T]) TryAs[To Enum, PTo interface {
 // *InvalidValueError[To], composing with %w and errors.As like Parse.
 //
 //	api, err := sqlSuit.As[OpenApiEnum]()
-func (e StringEnum[T]) As[To Enum, PTo interface {
+func (e StringEnum[T]) As[To Enum[To], PTo interface {
 	*To
 	set(string)
 }]() (To, error) {
@@ -123,7 +123,7 @@ func (e StringEnum[T]) As[To Enum, PTo interface {
 // and SameValues can assert at runtime). Panics with *InvalidValueError[To].
 //
 //	api := sqlSuit.MustAs[OpenApiEnum]()
-func (e StringEnum[T]) MustAs[To Enum, PTo interface {
+func (e StringEnum[T]) MustAs[To Enum[To], PTo interface {
 	*To
 	set(string)
 }]() To {

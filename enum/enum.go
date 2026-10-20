@@ -75,14 +75,15 @@ import (
 	"sync"
 )
 
-// Enum is the constraint satisfied by any type that embeds StringEnum[Self] or
-// IntEnum[Self]. Beyond being comparable and a fmt.Stringer, it requires the
+// Enum[T] is the constraint satisfied by T when it embeds StringEnum[T] or
+// IntEnum[T]; write generic helpers as [T enum.Enum[T]]. The self-reference is
+// what lets Compare(other T) sit in the interface. Beyond being comparable and a fmt.Stringer, it requires the
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
 // types is closed at the constraint level. Index exposes the 0-based
-// registration order (-1 for the zero value); IsValid/IsZero and HasTag/Tags
-// are the members' own methods, listed so generic code can call them.
-type Enum interface {
+// registration order (-1 for the zero value); IsValid/IsZero, HasTag/Tags and
+// Compare are the members' own methods, listed so generic code can call them.
+type Enum[T any] interface {
 	comparable
 	fmt.Stringer
 	isEnumMember()
@@ -91,11 +92,12 @@ type Enum interface {
 	IsZero() bool
 	HasTag(tag any) bool
 	Tags() []any
+	Compare(other T) int
 }
 
 // InvalidValueError is returned when an input does not name a registered
 // member of T. Match it with errors.As(err, new(*enum.InvalidValueError[YourEnum])).
-type InvalidValueError[T Enum] struct {
+type InvalidValueError[T Enum[T]] struct {
 	Value string
 }
 
@@ -107,7 +109,7 @@ func (e *InvalidValueError[T]) Error() string {
 // invalidString is what String() renders for the zero value, which names no
 // registered member: a placeholder naming the concrete enum type, e.g.
 // "<invalid Suit>".
-func invalidString[T Enum]() string {
+func invalidString[T Enum[T]]() string {
 	return "<invalid " + reflect.TypeFor[T]().Name() + ">"
 }
 
@@ -115,7 +117,7 @@ func invalidString[T Enum]() string {
 // zero value of T: it is not a registered member and the output ("" / 0) would
 // not round-trip, so it is refused rather than emitted for Unmarshal to reject.
 // Match it with errors.As(err, new(*enum.ZeroMarshalError[YourEnum])).
-type ZeroMarshalError[T Enum] struct{}
+type ZeroMarshalError[T Enum[T]] struct{}
 
 func (e *ZeroMarshalError[T]) Error() string {
 	var zero T
@@ -125,7 +127,7 @@ func (e *ZeroMarshalError[T]) Error() string {
 // ZeroValueError is returned by RequireValid when handed the zero value of T —
 // an "unset" enum that names no registered member. Match it with
 // errors.As(err, new(*enum.ZeroValueError[YourEnum])).
-type ZeroValueError[T Enum] struct{}
+type ZeroValueError[T Enum[T]] struct{}
 
 func (e *ZeroValueError[T]) Error() string {
 	var zero T
@@ -140,7 +142,7 @@ func (e *ZeroValueError[T]) Error() string {
 //	if err := enum.RequireValid(policy.Kind); err != nil {
 //		return fmt.Errorf("policy.kind: %w", err)
 //	}
-func RequireValid[T Enum](v T) error {
+func RequireValid[T Enum[T]](v T) error {
 	if !v.IsValid() {
 		return &ZeroValueError[T]{}
 	}
@@ -180,7 +182,7 @@ func bucketOf(t reflect.Type) *bucket {
 // registerLocked assigns t its 1-based insertion position, then records it. The
 // caller must hold mu for writing. Registering the same backing value twice for
 // a type is a programmer error (a copy-pasted member, a clashing int) and panics.
-func registerLocked[T Enum, PT interface {
+func registerLocked[T Enum[T], PT interface {
 	*T
 	setIndex(int)
 }](t *T, hasInt bool, ival int, tags []any) {
@@ -232,7 +234,7 @@ func registerLocked[T Enum, PT interface {
 //
 // Optional Tag options attach tags to the member; see Tag and the
 // ValuesWithTag/ValuesWithAnyTags/ValuesWithAllTags queries.
-func New[T Enum, V any, PT interface {
+func New[T Enum[T], V any, PT interface {
 	*T
 	set(V)
 	setIndex(int)
@@ -278,7 +280,7 @@ func tagsOf(opts []Option) []any {
 // ValuesWithAllTags (intersection).
 //
 //	enum.ValuesWithTag[Suit](GroupA) // members tagged GroupA
-func ValuesWithTag[T Enum](tag any) []T { return queryTags[T]([]any{tag}, false) }
+func ValuesWithTag[T Enum[T]](tag any) []T { return queryTags[T]([]any{tag}, false) }
 
 // ValuesWithAnyTags returns the members of T tagged with at least one of the
 // given tags (set union), deduplicated and in registration order. Tags may be of
@@ -287,16 +289,16 @@ func ValuesWithTag[T Enum](tag any) []T { return queryTags[T]([]any{tag}, false)
 //
 //	enum.ValuesWithAnyTags[Suit](GroupA, Tier1)  // members in GroupA OR Tier1
 //	enum.ValuesWithAnyTags[Card](GroupA, Common) // mixed tag types
-func ValuesWithAnyTags[T Enum](tags ...any) []T { return queryTags[T](tags, false) }
+func ValuesWithAnyTags[T Enum[T]](tags ...any) []T { return queryTags[T](tags, false) }
 
 // ValuesWithAllTags returns the members of T tagged with every one of the given
 // tags (set intersection), in registration order. Tags may be of different
 // types. With no tags it returns nil.
 //
 //	enum.ValuesWithAllTags[Suit](GroupA, Tier1) // members in GroupA AND Tier1
-func ValuesWithAllTags[T Enum](tags ...any) []T { return queryTags[T](tags, true) }
+func ValuesWithAllTags[T Enum[T]](tags ...any) []T { return queryTags[T](tags, true) }
 
-func queryTags[T Enum](tags []any, needAll bool) []T {
+func queryTags[T Enum[T]](tags []any, needAll bool) []T {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -329,7 +331,7 @@ func queryTags[T Enum](tags []any, needAll bool) []T {
 }
 
 // hasTag reports whether the member at 1-based position index carries tag.
-func hasTag[T Enum](index int, tag any) bool {
+func hasTag[T Enum[T]](index int, tag any) bool {
 	if index == 0 {
 		return false
 	}
@@ -340,7 +342,7 @@ func hasTag[T Enum](index int, tag any) bool {
 }
 
 // memberTags returns a copy of the tags of the member at 1-based position index.
-func memberTags[T Enum](index int) []any {
+func memberTags[T Enum[T]](index int) []any {
 	if index == 0 {
 		return nil
 	}
@@ -367,7 +369,7 @@ func appendUnique(xs []any, v any) []any {
 // highest value registered so far, or 0 when no int members exist yet. The
 // caller must hold mu (NextInt holds it for writing across the read-and-register
 // so the value can't be handed out twice).
-func nextIntLocked[T Enum]() int {
+func nextIntLocked[T Enum[T]]() int {
 	if b := reg[reflect.TypeFor[T]()]; b != nil && len(b.ints) != 0 {
 		return b.maxInt + 1
 	}
@@ -375,7 +377,7 @@ func nextIntLocked[T Enum]() int {
 }
 
 // Values returns T's registered members in registration order.
-func Values[T Enum]() []T {
+func Values[T Enum[T]]() []T {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
@@ -399,7 +401,7 @@ func Values[T Enum]() []T {
 //
 // It is TryParse with the member discarded; prefer TryParse when you want the
 // member itself, and Contains when a bool is all a condition needs.
-func Contains[T Enum, V any, PT interface {
+func Contains[T Enum[T], V any, PT interface {
 	*T
 	set(V)
 }](v V) bool {
@@ -417,7 +419,7 @@ func Contains[T Enum, V any, PT interface {
 // type exactly as New does, so passing the wrong type for a given enum — e.g.
 // enum.TryParse[Suit](5) or enum.TryParse[Color]("2") — is a compile error,
 // not a runtime miss.
-func TryParse[T Enum, V any, PT interface {
+func TryParse[T Enum[T], V any, PT interface {
 	*T
 	set(V)
 }](v V) (T, bool) {
@@ -431,7 +433,7 @@ func TryParse[T Enum, V any, PT interface {
 //
 //	v, err := enum.Parse[Suit]("hearts")
 //	v, err := enum.Parse[Priority](10)
-func Parse[T Enum, V any, PT interface {
+func Parse[T Enum[T], V any, PT interface {
 	*T
 	set(V)
 }](v V) (T, error) {
@@ -447,7 +449,7 @@ func Parse[T Enum, V any, PT interface {
 //
 //	var EdgeLabelHasMember = enum.MustParse[EdgeLabel]("HAS_MEMBER") // unusual
 //	conn.SourceType = enum.MustParse[SourceType](dbRow.SourceType)   // typical
-func MustParse[T Enum, V any, PT interface {
+func MustParse[T Enum[T], V any, PT interface {
 	*T
 	set(V)
 }](v V) T {
@@ -465,7 +467,7 @@ func MustParse[T Enum, V any, PT interface {
 // V is whatever the calling base is backed by; the compile-time guarantee that
 // To shares that backing kind comes from the *methods'* PTo constraint, not
 // from here — this helper only needs To and V to line up.
-func castTo[To Enum, V any](val V, index int) (To, bool) {
+func castTo[To Enum[To], V any](val V, index int) (To, bool) {
 	var zero To
 	if index == 0 {
 		return zero, true
@@ -476,7 +478,7 @@ func castTo[To Enum, V any](val V, index int) (To, bool) {
 // castErr is castTo with a miss turned into *InvalidValueError[To]; it backs As
 // and MustAs on both bases. Keeping it separate from castTo means the error
 // construction lives once rather than in four method bodies.
-func castErr[To Enum, V any](val V, index int) (To, error) {
+func castErr[To Enum[To], V any](val V, index int) (To, error) {
 	m, ok := castTo[To, V](val, index)
 	if !ok {
 		return m, &InvalidValueError[To]{Value: fmt.Sprint(val)}
@@ -493,7 +495,7 @@ func castErr[To Enum, V any](val V, index int) (To, error) {
 // directions:
 //
 //	if err := enum.SameValues[SqlEnum, OpenApiEnum](); err != nil { ... }
-func SameValues[A, B Enum]() error {
+func SameValues[A Enum[A], B Enum[B]]() error {
 	var zeroA A
 	var zeroB B
 	aVals, aInts := valueSet[A]()
@@ -524,7 +526,7 @@ func SameValues[A, B Enum]() error {
 // valueSet returns T's registered backing values, sorted (ints in decimal),
 // and whether T is int-backed. A type with no members yet reports
 // (nil, false).
-func valueSet[T Enum]() (vals []string, isInt bool) {
+func valueSet[T Enum[T]]() (vals []string, isInt bool) {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
@@ -568,7 +570,7 @@ func symDiff(a, b []string) (onlyA, onlyB []string) {
 // Unmarshal methods. It carries no set(V) constraint, so the Unmarshal methods —
 // whose T is known only to be an Enum and cannot prove *T has the setter — can
 // still call it. TryParse/Parse/Contains layer the compile-time check on top.
-func resolve[T Enum, V any](v V) (T, bool) {
+func resolve[T Enum[T], V any](v V) (T, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
 	b := reg[reflect.TypeFor[T]()]
