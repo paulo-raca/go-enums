@@ -692,3 +692,17 @@ func TestSameValues(t *testing.T) {
 	require.Contains(t, err.Error(), "string-backed")
 	require.Contains(t, err.Error(), "int-backed")
 }
+
+func TestRequireValid(t *testing.T) {
+	require.NoError(t, enum.RequireValid(Hearts))
+	require.NoError(t, enum.RequireValid(Red))
+
+	err := enum.RequireValid(Suit{})
+	var zse *enum.ZeroValueError[Suit]
+	require.ErrorAs(t, err, &zse)
+	require.EqualError(t, err, "enum: unset enum_test.Suit")
+
+	var zce *enum.ZeroValueError[Color]
+	require.ErrorAs(t, enum.RequireValid(Color{}), &zce)
+	require.NotErrorAs(t, enum.RequireValid(Suit{}), &zce)
+}

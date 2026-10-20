@@ -1,6 +1,6 @@
 module github.com/paulo-raca/go-enums/enumcheck
 
-go 1.27
+go 1.27.0
 
 require (
 	github.com/golangci/plugin-module-register v0.1.2

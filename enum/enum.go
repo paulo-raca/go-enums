@@ -27,7 +27,9 @@
 //     number (via Marshal/UnmarshalJSON)
 //   - database/sql: driver.Valuer + sql.Scanner (StringEnum as text, IntEnum as
 //     int64); nullable columns use a *T pointer
-//   - typed *InvalidValueError[T] / *ZeroMarshalError[T] errors  (work with errors.As)
+//   - typed *InvalidValueError[T] / *ZeroMarshalError[T] / *ZeroValueError[T]
+//     errors  (work with errors.As)
+//   - RequireValid[T](v) error rejects the zero value with *ZeroValueError[T]
 //   - IsValid()/IsZero() and Index() methods on each member (Index is 0-based
 //     registration order; -1 marks the zero value)
 //   - Compare() ordering members by Index — Go has no operator overloading,
@@ -78,12 +80,17 @@ import (
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
 // types is closed at the constraint level. Index exposes the 0-based
-// registration order (-1 for the zero value).
+// registration order (-1 for the zero value); IsValid/IsZero and HasTag/Tags
+// are the members' own methods, listed so generic code can call them.
 type Enum interface {
 	comparable
 	fmt.Stringer
 	isEnumMember()
 	Index() int
+	IsValid() bool
+	IsZero() bool
+	HasTag(tag any) bool
+	Tags() []any
 }
 
 // InvalidValueError is returned when an input does not name a registered
@@ -113,6 +120,31 @@ type ZeroMarshalError[T Enum] struct{}
 func (e *ZeroMarshalError[T]) Error() string {
 	var zero T
 	return fmt.Sprintf("enum: refusing to marshal zero value of %T", zero)
+}
+
+// ZeroValueError is returned by RequireValid when handed the zero value of T —
+// an "unset" enum that names no registered member. Match it with
+// errors.As(err, new(*enum.ZeroValueError[YourEnum])).
+type ZeroValueError[T Enum] struct{}
+
+func (e *ZeroValueError[T]) Error() string {
+	var zero T
+	return fmt.Sprintf("enum: unset %T", zero)
+}
+
+// RequireValid returns *ZeroValueError[T] if v is the zero value, nil if it is
+// a real member. It is the error-returning form of the IsValid guard, for
+// rejecting an unset field coming from code; input that may be unknown should
+// go through Parse, which keeps the offending value in its error.
+//
+//	if err := enum.RequireValid(policy.Kind); err != nil {
+//		return fmt.Errorf("policy.kind: %w", err)
+//	}
+func RequireValid[T Enum](v T) error {
+	if !v.IsValid() {
+		return &ZeroValueError[T]{}
+	}
+	return nil
 }
 
 // bucket holds the registered members of a single enum type. order indexes by
