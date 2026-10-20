@@ -80,12 +80,17 @@ import (
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
 // types is closed at the constraint level. Index exposes the 0-based
-// registration order (-1 for the zero value).
+// registration order (-1 for the zero value); IsValid/IsZero and HasTag/Tags
+// are the members' own methods, listed so generic code can call them.
 type Enum interface {
 	comparable
 	fmt.Stringer
 	isEnumMember()
 	Index() int
+	IsValid() bool
+	IsZero() bool
+	HasTag(tag any) bool
+	Tags() []any
 }
 
 // InvalidValueError is returned when an input does not name a registered
@@ -136,8 +141,7 @@ func (e *ZeroValueError[T]) Error() string {
 //		return fmt.Errorf("policy.kind: %w", err)
 //	}
 func RequireValid[T Enum](v T) error {
-	var zero T
-	if v == zero {
+	if !v.IsValid() {
 		return &ZeroValueError[T]{}
 	}
 	return nil
