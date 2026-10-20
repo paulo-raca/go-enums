@@ -18,7 +18,7 @@ import (
 // String() is therefore the decimal form of the value, and JSON encodes as a
 // bare number. T carries the concrete identity for UnmarshalText/JSON and
 // *InvalidValueError[T].
-type IntEnum[T Enum] struct {
+type IntEnum[T Enum[T]] struct {
 	val int
 	// index is the 1-based registration order; 0 only for the Go zero value. It
 	// both orders members and marks the zero value invalid, so IntEnum{} stays
@@ -91,7 +91,7 @@ func (e *IntEnum[T]) set(n int) { e.val = n }
 
 // TryAs casts e to the member of To backed by the same int; see
 // StringEnum.TryAs for the full contract.
-func (e IntEnum[T]) TryAs[To Enum, PTo interface {
+func (e IntEnum[T]) TryAs[To Enum[To], PTo interface {
 	*To
 	set(int)
 }]() (To, bool) {
@@ -99,7 +99,7 @@ func (e IntEnum[T]) TryAs[To Enum, PTo interface {
 }
 
 // As is the error-returning flavor of TryAs; see StringEnum.As.
-func (e IntEnum[T]) As[To Enum, PTo interface {
+func (e IntEnum[T]) As[To Enum[To], PTo interface {
 	*To
 	set(int)
 }]() (To, error) {
@@ -107,7 +107,7 @@ func (e IntEnum[T]) As[To Enum, PTo interface {
 }
 
 // MustAs is the panicking sibling of As; see StringEnum.MustAs.
-func (e IntEnum[T]) MustAs[To Enum, PTo interface {
+func (e IntEnum[T]) MustAs[To Enum[To], PTo interface {
 	*To
 	set(int)
 }]() To {
@@ -207,7 +207,7 @@ func (e *IntEnum[T]) Scan(src any) error {
 // concurrently: it computes the next value and registers it under a single
 // write lock, so two callers can never be handed the same value. Optional Tag
 // options attach tags to the member; see Tag.
-func NextInt[T Enum, PT interface {
+func NextInt[T Enum[T], PT interface {
 	*T
 	set(int)
 	setIndex(int)

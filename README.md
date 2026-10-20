@@ -77,6 +77,9 @@ var (
   `enum.Parse[T]` → `(T, error)`, `enum.MustParse[T]` → `T` (panics)
 - `member.IsValid()` / `member.IsZero()` — is this a real member or the zero
   value? (lock-free; `IsZero` also drives `json:",omitzero"`)
+- `enum.Enum[T]` — the constraint for your own generic helpers
+  (`func Max[T enum.Enum[T]](a, b T) T`); it exposes `Index`, `IsValid`,
+  `IsZero`, `HasTag`, `Tags` and `Compare`
 - `member.Index()` — 0-based registration order (`-1` for the zero value)
 - `a.Compare(b)` — order members by registration position. Go has no operator
   overloading, so `a < b` is `a.Compare(b) < 0` (likewise `<=`, `>`, `>=`)

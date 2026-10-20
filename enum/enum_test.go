@@ -706,3 +706,18 @@ func TestRequireValid(t *testing.T) {
 	require.ErrorAs(t, enum.RequireValid(Color{}), &zce)
 	require.NotErrorAs(t, enum.RequireValid(Suit{}), &zce)
 }
+
+// maxOf is generic over any enum: Compare is reachable through Enum[T].
+func maxOf[T enum.Enum[T]](a, b T) T {
+	if a.Compare(b) >= 0 {
+		return a
+	}
+	return b
+}
+
+func TestEnumConstraintExposesMemberMethods(t *testing.T) {
+	require.Equal(t, Spades, maxOf(Hearts, Spades))
+	require.Equal(t, Spades, maxOf(Spades, Hearts))
+	require.True(t, Hearts.IsValid())
+	require.True(t, (Suit{}).IsZero())
+}
