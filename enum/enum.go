@@ -34,6 +34,9 @@
 //     registration order; -1 marks the zero value)
 //   - Compare() ordering members by Index — Go has no operator overloading,
 //     so a < b is a.Compare(b) < 0; sort with slices.SortFunc(xs, T.Compare)
+//   - Equal() — member equality as a method, so github.com/google/go-cmp
+//     compares members without extra options (it ignores unexported fields
+//     and panics on them unless the type has an Equal method)
 //   - Values[T]() and Contains[T](v); plus three flavors of value lookup:
 //     TryParse[T] (T, bool), Parse[T] (T, error), MustParse[T] (T, panics)
 //   - typed tags via New(v, Tag(g)...): query with ValuesWithTag[T] (one tag),
@@ -81,8 +84,8 @@ import (
 // unexported isEnumMember marker that only those two bases provide, so an
 // arbitrary comparable Stringer cannot masquerade as an enum: the set of enum
 // types is closed at the constraint level. Index exposes the 0-based
-// registration order (-1 for the zero value); IsValid/IsZero, HasTag/Tags and
-// Compare are the members' own methods, listed so generic code can call them.
+// registration order (-1 for the zero value); IsValid/IsZero, HasTag/Tags,
+// Compare and Equal are the members' own methods, listed so generic code can call them.
 type Enum[T any] interface {
 	comparable
 	fmt.Stringer
@@ -93,6 +96,7 @@ type Enum[T any] interface {
 	HasTag(tag any) bool
 	Tags() []any
 	Compare(other T) int
+	Equal(other T) bool
 }
 
 // InvalidValueError is returned when an input does not name a registered

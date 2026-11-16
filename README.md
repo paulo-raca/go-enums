@@ -79,8 +79,11 @@ var (
   value? (lock-free; `IsZero` also drives `json:",omitzero"`)
 - `enum.Enum[T]` — the constraint for your own generic helpers
   (`func Max[T enum.Enum[T]](a, b T) T`); it exposes `Index`, `IsValid`,
-  `IsZero`, `HasTag`, `Tags` and `Compare`
+  `IsZero`, `HasTag`, `Tags`, `Compare` and `Equal`
 - `member.Index()` — 0-based registration order (`-1` for the zero value)
+- `a.Equal(b)` — `a == b` as a method. `go-cmp` calls it, so `cmp.Diff` /
+  `cmp.Equal` compare structs holding enums with no extra options (members keep
+  their value in unexported fields, which `go-cmp` otherwise refuses)
 - `a.Compare(b)` — order members by registration position. Go has no operator
   overloading, so `a < b` is `a.Compare(b) < 0` (likewise `<=`, `>`, `>=`)
 

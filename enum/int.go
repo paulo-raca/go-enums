@@ -55,6 +55,10 @@ func (e IntEnum[T]) Index() int { return e.index - 1 }
 // returning -1, 0, or +1. See StringEnum.Compare.
 func (e IntEnum[T]) Compare(other T) int { return cmp.Compare(e.Index(), other.Index()) }
 
+// Equal reports whether e and other are the same member (two zero values are
+// equal). See StringEnum.Equal.
+func (e IntEnum[T]) Equal(other T) bool { return e.Index() == other.Index() }
+
 // MarshalText implements encoding.TextMarshaler, emitting the decimal value.
 // This is what encoding/json uses for an IntEnum used as a map key. Encoding the
 // zero value yields *ZeroMarshalError[T].

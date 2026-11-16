@@ -54,6 +54,13 @@ func (e StringEnum[T]) Index() int { return e.index - 1 }
 // every registered member.
 func (e StringEnum[T]) Compare(other T) int { return cmp.Compare(e.Index(), other.Index()) }
 
+// Equal reports whether e and other are the same member (two zero values are
+// equal). It is == spelled as a method, which matters because members hide their
+// value in unexported fields: github.com/google/go-cmp calls an
+// Equal(T) bool method when a type has one, so cmp.Diff and cmp.Equal compare
+// members without cmpopts.EquateComparable or an unexported-field option.
+func (e StringEnum[T]) Equal(other T) bool { return e.Index() == other.Index() }
+
 // MarshalText implements encoding.TextMarshaler. encoding/json uses this
 // automatically (quoting the result) when no MarshalJSON is present, so a
 // StringEnum encodes as a JSON string and works as a JSON map key. Encoding the

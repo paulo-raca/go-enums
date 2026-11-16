@@ -161,6 +161,34 @@ func TestOrder(t *testing.T) {
 	require.Negative(t, Red.Compare(Blue))
 }
 
+func TestEqual(t *testing.T) {
+	require.True(t, Hearts.Equal(Hearts))
+	require.False(t, Hearts.Equal(Spades))
+	require.True(t, Red.Equal(Red))
+	require.False(t, Red.Equal(Blue))
+
+	// The zero value equals itself and no member.
+	require.True(t, Suit{}.Equal(Suit{}))
+	require.False(t, Suit{}.Equal(Hearts))
+	require.False(t, Hearts.Equal(Suit{}))
+
+	// A member backed by "" is still not the zero value.
+	type Blank struct{ enum.StringEnum[Blank] }
+	empty := enum.New[Blank]("")
+	require.False(t, empty.Equal(Blank{}))
+	require.True(t, empty.Equal(empty))
+
+	// A decoded value equals the canonical member.
+	var got Suit
+	require.NoError(t, json.Unmarshal([]byte(`"diamonds"`), &got))
+	require.True(t, got.Equal(Diamonds))
+
+	// go-cmp's hook is `(T) Equal(T) bool` (T == the compared type); structs that
+	// embed the enum still expose it with exactly that shape.
+	var _ interface{ Equal(Suit) bool } = Hearts
+	var _ interface{ Equal(Color) bool } = Red
+}
+
 // Conc is registered entirely from concurrent goroutines to exercise the
 // read-and-register atomicity of NextInt under the race detector.
 type Conc struct{ enum.IntEnum[Conc] }
